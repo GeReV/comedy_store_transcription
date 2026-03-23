@@ -25,9 +25,11 @@ Foreach-Object {
 		continue 
 	}
 	
-	ffmpeg -nostdin -threads 0 -i $_ -f wav -ac 1 -acodec pcm_s16le -ar 16000 - | 
-		$WhisperExe -m .\whisper.cpp\models\ggml-large-v3-turbo.bin -l he -ojf -osrt -of "temp" -pp -f - 2>&1 | 
-		Tee-Object -FilePath $outlog
+	$cmd = "ffmpeg -nostdin -threads 0 -i '$_' -f wav -ac 1 -acodec pcm_s16le -ar 16000 - | 
+		$WhisperExe -m .\whisper.cpp\models\ggml-large-v3-turbo.bin -vm .\whisper.cpp\models\ggml-silero-v6.2.0.bin --vad -l he -ojf -osrt -of temp -pp -et 2.8 -mc 64 -f - 2>&1 | 
+		Tee-Object -FilePath '$outlog'"
+		
+	Invoke-Expression $cmd
 		
 	Move-Item -Path "temp.json" -Destination "$outfile.json"
 	Move-Item -Path "temp.srt" -Destination "$outfile.srt"
