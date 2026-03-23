@@ -12,8 +12,11 @@ Each episode has its own folder containing the following:
 
 The transcriptions and chapters were extracted using automated tools and as such contain many mistakes.
 
-The chapters were extract using an FFMPEG filter which recognizes mostly camera cuts, so single scenes will be split.
-
-I might add manual tools to help merge cuts into proper chapters and make transcription fixes.
+The chapters were extracted using an FFMPEG filter which recognizes mostly camera cuts, so single scenes will be split.
 
 If anyone would like to contribute, feel free to build upon this and/or send pull requests.
+
+## Future work
+
+- Add tools for editing transcriptions?
+- Add tools for merging chapters?
