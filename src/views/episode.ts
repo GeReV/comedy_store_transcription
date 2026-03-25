@@ -10,11 +10,13 @@ export function renderEpisode(
   scrollToLine?: number,
 ): void {
   clearHighlights();
-  container.innerHTML = "";
+  container.replaceChildren();
 
   const header = document.createElement("div");
   header.className = "episode-header";
-  header.innerHTML = `<h2>${escHtml(episode.title)}</h2>`;
+  const h2 = document.createElement("h2");
+  h2.textContent = episode.title;
+  header.appendChild(h2);
   container.appendChild(header);
 
   const list = document.createElement("div");
@@ -31,11 +33,16 @@ export function renderEpisode(
     el.className = "transcript-line";
     el.dataset["idx"] = String(i);
 
-    el.innerHTML = `
-      <span class="ts">${escHtml(formatTime(line.start))}</span>
-      <span class="text">${escHtml(line.text)}</span>
-    `;
+    const ts = document.createElement("span");
+    ts.className = "ts";
+    ts.textContent = formatTime(line.start);
 
+    const text = document.createElement("span");
+    text.className = "text";
+    text.textContent = line.text;
+
+    el.appendChild(ts);
+    el.appendChild(text);
     list.appendChild(el);
     lineEls.push(el);
   }
@@ -84,12 +91,4 @@ export function applyQueryFilter(
   if (filtering) {
     applyHighlights(query, list);
   }
-}
-
-function escHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
 }

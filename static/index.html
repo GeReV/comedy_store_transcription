@@ -11,14 +11,17 @@
     <div id="top-bar-inner">
       <h1>קומדי סטור</h1>
       <div id="search-bar">
-        <input
-          id="query"
-          type="search"
-          placeholder="חפש בתמלילים..."
-          autocomplete="off"
-          autocorrect="off"
-          spellcheck="false"
-        >
+        <div class="query-wrap">
+          <input
+            id="query"
+            type="search"
+            placeholder="חפש בתמלילים..."
+            autocomplete="off"
+            autocorrect="off"
+            spellcheck="false"
+          >
+          <button id="query-clear" aria-label="נקה חיפוש" hidden>✕</button>
+        </div>
         <span id="search-status" aria-live="polite"></span>
       </div>
       <button id="theme-toggle" aria-label="החלף ערכת צבעים" title="החלף ערכת צבעים">

@@ -17,8 +17,7 @@ export function renderSidebar(
     li.addEventListener("click", () => navigate(`episode/${ep.id}`));
     ul.appendChild(li);
   }
-  container.innerHTML = "";
-  container.appendChild(ul);
+  container.replaceChildren(ul);
 }
 
 /**

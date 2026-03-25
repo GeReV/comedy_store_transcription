@@ -19,6 +19,12 @@ export const MAX_ENTRIES_PER_GROUP = 3;
  */
 export const MAX_MERGED_LINES = 10;
 
+/**
+ * When true, adjacent/overlapping context windows are merged into a single
+ * display entry. When false, each match produces its own independent entry.
+ */
+export const MERGE_CONTEXT_ENTRIES = false;
+
 export function formatTime(seconds: number): string {
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
@@ -57,7 +63,7 @@ function buildDisplayEntries(
     const end = Math.min(totalLines - 1, idx + C);
 
     const prev = entries.at(-1);
-    if (prev && start <= prev.endIdx + 1) {
+    if (MERGE_CONTEXT_ENTRIES && prev && start <= prev.endIdx + 1) {
       // Merge: extend the previous entry, honouring the line cap
       const newEnd = Math.min(
         Math.max(prev.endIdx, end),

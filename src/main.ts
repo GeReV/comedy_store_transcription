@@ -1,19 +1,53 @@
 import type { EpisodeIndex, EpisodeLines, EpisodeMetadata } from "./types.js";
 import { loadIndex, loadAll, loadEpisode, getCachedSubtitles } from "./loader.js";
 import { searchEpisodes, MIN_QUERY_LENGTH } from "./search.js";
-import { clearHighlights } from "./highlight.js";
+import { applyHighlights, clearHighlights } from "./highlight.js";
 import { renderSidebar, updateSidebarState } from "./sidebar.js";
 import { renderWelcome } from "./views/list.js";
 import { renderResults } from "./views/results.js";
 import { renderEpisode, applyQueryFilter } from "./views/episode.js";
+import { ensure } from "./utils.js";
+
+// ── Utilities ──────────────────────────────────────────────────────────
+function makeStateMsg(text: string): HTMLParagraphElement {
+  const p = document.createElement("p");
+  p.className = "state-message";
+  p.textContent = text;
+  return p;
+}
 
 // ── DOM refs ───────────────────────────────────────────────────────────
-const mainPaneEl   = document.getElementById("main-pane")!;
-const sidebarEl    = document.getElementById("sidebar")!;
-const queryEl      = document.getElementById("query") as HTMLInputElement;
-const statusEl     = document.getElementById("search-status")!;
-const breadcrumbEl = document.getElementById("breadcrumb")!;
-const themeToggle  = document.getElementById("theme-toggle")!;
+const mainPaneEl   = ensure(document.getElementById("main-pane"), "#main-pane");
+const sidebarEl    = ensure(document.getElementById("sidebar"), "#sidebar");
+const queryEl      = ensure(document.querySelector<HTMLInputElement>("#query"), "#query");
+const statusEl     = ensure(document.getElementById("search-status"), "#search-status");
+const breadcrumbEl = ensure(document.getElementById("breadcrumb"), "#breadcrumb");
+const themeToggle  = ensure(document.getElementById("theme-toggle"), "#theme-toggle");
+const clearBtn     = ensure(document.querySelector<HTMLButtonElement>("#query-clear"), "#query-clear");
+
+// ── Cached state message elements ──────────────────────────────────────
+const loadingSubsMsg    = makeStateMsg("טוען תמלילים...");
+const episodeNotFoundMsg = makeStateMsg("פרק לא נמצא.");
+const loadingEpisodeMsg = makeStateMsg("טוען תמלול...");
+const loadErrorMsg      = makeStateMsg("שגיאה בטעינת רשימת הפרקים.");
+
+// ── Cached breadcrumb parts ─────────────────────────────────────────────
+const sepTemplate = document.createElement("span");
+sepTemplate.className = "sep";
+sepTemplate.setAttribute("aria-hidden", "true");
+sepTemplate.textContent = "‹";
+
+const bcHomeLink = document.createElement("a");
+bcHomeLink.textContent = "ראשי";
+bcHomeLink.addEventListener("click", () => navigateBack(""));
+
+function makeSep(): Node { return sepTemplate.cloneNode(true); }
+
+function makeSpan(text: string): HTMLSpanElement {
+  const span = document.createElement("span");
+  span.textContent = text;
+  return span;
+}
 
 // ── App state ──────────────────────────────────────────────────────────
 type Route =
@@ -23,6 +57,8 @@ type Route =
 
 let episodeIndex: EpisodeIndex = [];
 let currentRoute: Route = { kind: "welcome" };
+const scrollStack: number[] = [];
+let isBackNavigation = false;
 let episodeViewState: {
   episode: EpisodeMetadata;
   lines: EpisodeLines;
@@ -50,6 +86,13 @@ themeToggle.addEventListener("click", () => {
 
 // ── Navigation ─────────────────────────────────────────────────────────
 export function navigate(hash: string) {
+  scrollStack.push(mainPaneEl.scrollTop);
+  isBackNavigation = false;
+  window.location.hash = hash;
+}
+
+export function navigateBack(hash: string) {
+  isBackNavigation = true;
   window.location.hash = hash;
 }
 
@@ -78,16 +121,13 @@ function parseHash(hash: string): Route {
 
 // ── Breadcrumb ─────────────────────────────────────────────────────────
 function setBreadcrumb(route: Route, prevQuery?: string) {
-  const sep = `<span class="sep" aria-hidden="true">‹</span>`;
-
   if (route.kind === "welcome") {
-    breadcrumbEl.innerHTML = "";
+    breadcrumbEl.replaceChildren();
     return;
   }
 
   if (route.kind === "results") {
-    breadcrumbEl.innerHTML = `<a id="bc-home">ראשי</a>${sep}<span>תוצאות חיפוש</span>`;
-    breadcrumbEl.querySelector("#bc-home")?.addEventListener("click", () => navigate(""));
+    breadcrumbEl.replaceChildren(bcHomeLink, makeSep(), makeSpan("תוצאות חיפוש"));
     return;
   }
 
@@ -96,17 +136,14 @@ function setBreadcrumb(route: Route, prevQuery?: string) {
     const title = ep?.title ?? route.id;
 
     if (prevQuery && prevQuery.trim().length >= MIN_QUERY_LENGTH) {
-      breadcrumbEl.innerHTML =
-        `<a id="bc-home">ראשי</a>${sep}` +
-        `<a id="bc-results">תוצאות חיפוש</a>${sep}` +
-        `<span>${escHtml(title)}</span>`;
-      breadcrumbEl.querySelector("#bc-home")?.addEventListener("click", () => navigate(""));
-      breadcrumbEl.querySelector("#bc-results")?.addEventListener("click", () =>
-        navigate(`search/${encodeURIComponent(prevQuery)}`),
+      const resultsLink = document.createElement("a");
+      resultsLink.textContent = "תוצאות חיפוש";
+      resultsLink.addEventListener("click", () =>
+        navigateBack(`search/${encodeURIComponent(prevQuery)}`),
       );
+      breadcrumbEl.replaceChildren(bcHomeLink, makeSep(), resultsLink, makeSep(), makeSpan(title));
     } else {
-      breadcrumbEl.innerHTML = `<a id="bc-home">ראשי</a>${sep}<span>${escHtml(title)}</span>`;
-      breadcrumbEl.querySelector("#bc-home")?.addEventListener("click", () => navigate(""));
+      breadcrumbEl.replaceChildren(bcHomeLink, makeSep(), makeSpan(title));
     }
   }
 }
@@ -123,6 +160,8 @@ function syncSidebar() {
 
 // ── Router ─────────────────────────────────────────────────────────────
 async function handleRoute(route: Route, prevQuery?: string) {
+  const savedScroll = isBackNavigation ? (scrollStack.pop() ?? 0) : 0;
+  isBackNavigation = false;
   currentRoute = route;
   episodeViewState = null;
   clearHighlights();
@@ -132,6 +171,7 @@ async function handleRoute(route: Route, prevQuery?: string) {
   if (route.kind === "welcome") {
     queryEl.value = "";
     renderWelcome(mainPaneEl);
+    mainPaneEl.scrollTop = savedScroll;
     return;
   }
 
@@ -141,30 +181,36 @@ async function handleRoute(route: Route, prevQuery?: string) {
     const subs = getCachedSubtitles();
 
     if (subs.size < episodeIndex.length) {
-      mainPaneEl.innerHTML = `<p class="state-message">טוען תמלילים...</p>`;
+      mainPaneEl.replaceChildren(loadingSubsMsg);
       return;
     }
 
     const results = searchEpisodes(episodeIndex, subs, route.query);
     setStatus(`${results.reduce((s, r) => s + r.totalMatches, 0)} תוצאות`);
     renderResults(mainPaneEl, results, subs);
+    applyHighlights(route.query, mainPaneEl);
+    mainPaneEl.scrollTop = savedScroll;
     return;
   }
 
   if (route.kind === "episode") {
-    queryEl.value = prevQuery ?? "";
+    queryEl.value = route.lineIndex !== undefined ? "" : (prevQuery ?? "");
     setBreadcrumb(route, prevQuery);
 
     const ep = episodeIndex.find((e) => e.id === route.id);
     if (!ep) {
-      mainPaneEl.innerHTML = `<p class="state-message">פרק לא נמצא.</p>`;
+      mainPaneEl.replaceChildren(episodeNotFoundMsg);
       return;
     }
 
-    mainPaneEl.innerHTML = `<p class="state-message">טוען תמלול...</p>`;
+    mainPaneEl.replaceChildren(loadingEpisodeMsg);
     const lines = await loadEpisode(ep);
 
     renderEpisode(mainPaneEl, ep, lines, queryEl.value, route.lineIndex);
+
+    if (route.lineIndex === undefined) {
+      requestAnimationFrame(() => { mainPaneEl.scrollTop = savedScroll; });
+    }
 
     const listEl = mainPaneEl.querySelector<HTMLElement>(".transcript-list");
     if (listEl) {
@@ -181,6 +227,7 @@ async function handleRoute(route: Route, prevQuery?: string) {
 // ── Search input handling ──────────────────────────────────────────────
 queryEl.addEventListener("input", () => {
   const q = queryEl.value;
+  clearBtn.hidden = q.length === 0;
 
   // Always sync sidebar highlights as the user types
   syncSidebar();
@@ -199,6 +246,7 @@ queryEl.addEventListener("input", () => {
     const results = searchEpisodes(episodeIndex, subs, q);
     setStatus(`${results.reduce((s, r) => s + r.totalMatches, 0)} תוצאות`);
     renderResults(mainPaneEl, results, subs);
+    applyHighlights(q, mainPaneEl);
     currentRoute = { kind: "results", query: q };
   } else if (q.trim().length === 0) {
     setStatus("");
@@ -220,6 +268,14 @@ queryEl.addEventListener("keydown", (e) => {
   }
 });
 
+// ── Clear button ───────────────────────────────────────────────────────
+clearBtn.addEventListener("click", () => {
+  queryEl.value = "";
+  clearBtn.hidden = true;
+  queryEl.dispatchEvent(new Event("input"));
+  queryEl.focus();
+});
+
 // ── Status ─────────────────────────────────────────────────────────────
 function setStatus(msg: string) {
   statusEl.textContent = msg;
@@ -233,7 +289,7 @@ async function init() {
   try {
     episodeIndex = await loadIndex();
   } catch {
-    mainPaneEl.innerHTML = `<p class="state-message">שגיאה בטעינת רשימת הפרקים.</p>`;
+    mainPaneEl.replaceChildren(loadErrorMsg);
     return;
   }
 
@@ -256,6 +312,7 @@ async function init() {
       const results = searchEpisodes(episodeIndex, subs, currentRoute.query);
       setStatus(`${results.reduce((s, r) => s + r.totalMatches, 0)} תוצאות`);
       renderResults(mainPaneEl, results, subs);
+      applyHighlights(currentRoute.query, mainPaneEl);
     }
     syncSidebar();
   });
@@ -272,12 +329,3 @@ window.addEventListener("hashchange", () => {
 });
 
 document.addEventListener("DOMContentLoaded", init);
-
-// ── Helpers ────────────────────────────────────────────────────────────
-function escHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}

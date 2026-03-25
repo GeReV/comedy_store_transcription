@@ -2,15 +2,19 @@ import type { EpisodeSearchResult, EpisodeLines, DisplayEntry } from "../types.j
 import { MAX_ENTRIES_PER_GROUP, formatTime } from "../search.js";
 import { navigate } from "../main.js";
 
+const noResultsEl = document.createElement("p");
+noResultsEl.className = "state-message";
+noResultsEl.textContent = "לא נמצאו תוצאות";
+
 export function renderResults(
   container: HTMLElement,
   results: EpisodeSearchResult[],
   subtitles: Map<string, EpisodeLines>,
 ): void {
-  container.innerHTML = "";
+  container.replaceChildren();
 
   if (results.length === 0) {
-    container.innerHTML = `<p class="state-message">לא נמצאו תוצאות</p>`;
+    container.replaceChildren(noResultsEl);
     return;
   }
 
