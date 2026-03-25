@@ -3,3 +3,6 @@
 __pycache__
 process
 whisper.cpp
+node_modules
+static/main.js
+static/data/

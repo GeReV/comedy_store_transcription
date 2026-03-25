@@ -1,0 +1,17 @@
+{
+  "name": "comedy-store-website",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build:data": "python scripts/build_data.py",
+    "build:ts": "esbuild src/main.ts --bundle --outfile=static/main.js --target=es2020 --minify",
+    "build": "npm run build:data && npm run build:ts",
+    "dev": "concurrently \"esbuild src/main.ts --bundle --outfile=static/main.js --target=es2020 --watch\" \"serve static\""
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0",
+    "esbuild": "^0.25.0",
+    "serve": "^14.2.0",
+    "typescript": "^6.0.0"
+  }
+}
