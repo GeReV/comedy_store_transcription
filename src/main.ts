@@ -88,6 +88,16 @@ themeToggle.addEventListener("click", () => {
 // ── Navigation ─────────────────────────────────────────────────────────
 export function navigate(hash: string) {
   scrollStack.push(mainPaneEl.scrollTop);
+  // When jumping to an episode from in-memory search results (user hasn't pressed
+  // Enter, so #search/... isn't in the browser history yet), silently insert it
+  // first so the native Back button returns to the results rather than welcome.
+  if (
+    currentRoute.kind === "results" &&
+    hash.startsWith("episode/") &&
+    !window.location.hash.startsWith("#search/")
+  ) {
+    history.pushState(null, "", `#search/${encodeURIComponent(currentRoute.query)}`);
+  }
   isBackNavigation = false;
   window.location.hash = hash;
 }
@@ -320,6 +330,12 @@ async function init() {
 }
 
 // ── Hash routing ───────────────────────────────────────────────────────
+// popstate fires before hashchange on native Back/Forward, letting us flag
+// the navigation so handleRoute restores scroll from the stack.
+window.addEventListener("popstate", () => {
+  isBackNavigation = true;
+});
+
 window.addEventListener("hashchange", () => {
   const route = parseHash(window.location.hash);
   const prevQuery =
