@@ -7,6 +7,7 @@ import { renderWelcome } from "./views/list.js";
 import { renderResults } from "./views/results.js";
 import { renderEpisode, applyQueryFilter } from "./views/episode.js";
 import { ensure } from "./utils.js";
+import { measure } from "./perf.js";
 
 // ── Utilities ──────────────────────────────────────────────────────────
 function makeStateMsg(text: string): HTMLParagraphElement {
@@ -185,9 +186,9 @@ async function handleRoute(route: Route, prevQuery?: string) {
       return;
     }
 
-    const results = searchEpisodes(episodeIndex, subs, route.query);
+    const results = measure("search", () => searchEpisodes(episodeIndex, subs, route.query));
     setStatus(`${results.reduce((s, r) => s + r.totalMatches, 0)} תוצאות`);
-    renderResults(mainPaneEl, results, subs);
+    measure("render:results", () => renderResults(mainPaneEl, results, subs));
     applyHighlights(route.query, mainPaneEl);
     mainPaneEl.scrollTop = savedScroll;
     return;
@@ -206,7 +207,7 @@ async function handleRoute(route: Route, prevQuery?: string) {
     mainPaneEl.replaceChildren(loadingEpisodeMsg);
     const lines = await loadEpisode(ep);
 
-    renderEpisode(mainPaneEl, ep, lines, queryEl.value, route.lineIndex);
+    measure("render:episode", () => renderEpisode(mainPaneEl, ep, lines, queryEl.value, route.lineIndex));
 
     if (route.lineIndex === undefined) {
       requestAnimationFrame(() => { mainPaneEl.scrollTop = savedScroll; });
@@ -236,16 +237,16 @@ queryEl.addEventListener("input", () => {
     // Filter transcript in-place without navigating away
     if (episodeViewState) {
       const { listEl, lineEls, lines } = episodeViewState;
-      applyQueryFilter(listEl, lineEls, lines, q);
+      measure("filter:episode", () => applyQueryFilter(listEl, lineEls, lines, q));
     }
     return;
   }
 
   const subs = getCachedSubtitles();
   if (q.trim().length >= MIN_QUERY_LENGTH && subs.size > 0) {
-    const results = searchEpisodes(episodeIndex, subs, q);
+    const results = measure("search", () => searchEpisodes(episodeIndex, subs, q));
     setStatus(`${results.reduce((s, r) => s + r.totalMatches, 0)} תוצאות`);
-    renderResults(mainPaneEl, results, subs);
+    measure("render:results", () => renderResults(mainPaneEl, results, subs));
     applyHighlights(q, mainPaneEl);
     currentRoute = { kind: "results", query: q };
   } else if (q.trim().length === 0) {
@@ -309,9 +310,9 @@ async function init() {
     setStatus("");
     if (currentRoute.kind === "results") {
       const subs = getCachedSubtitles();
-      const results = searchEpisodes(episodeIndex, subs, currentRoute.query);
+      const results = measure("search", () => searchEpisodes(episodeIndex, subs, currentRoute.query));
       setStatus(`${results.reduce((s, r) => s + r.totalMatches, 0)} תוצאות`);
-      renderResults(mainPaneEl, results, subs);
+      measure("render:results", () => renderResults(mainPaneEl, results, subs));
       applyHighlights(currentRoute.query, mainPaneEl);
     }
     syncSidebar();

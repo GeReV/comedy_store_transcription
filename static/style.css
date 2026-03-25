@@ -112,7 +112,7 @@ h1 {
 #query {
   flex: 1;
   min-width: 0;
-  padding: .45rem 2rem .45rem .8rem;
+  padding: .45rem .8rem .45rem 2rem;
   font-size: .95rem;
   font-family: inherit;
   direction: rtl;

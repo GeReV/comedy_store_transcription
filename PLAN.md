@@ -21,6 +21,7 @@ src/
   main.ts                        ← entry point, app state, routing, event wiring
   types.ts                       ← shared TypeScript types
   utils.ts                       ← assert / ensure / escHtml helpers
+  perf.ts                        ← dev-only performance instrumentation (stripped in prod)
   search.ts                      ← search logic, display entry construction
   sidebar.ts                     ← sidebar render + live state updates
   highlight.ts                   ← CSS Custom Highlights API wrapper
@@ -97,6 +98,14 @@ assert(condition, message)         // asserts condition — throws Error if fals
 ensure(val, description)           // unwraps T | null | undefined → T via assert
 escHtml(s)                         // escapes &, <, >, " for safe HTML insertion
 ```
+
+### Performance instrumentation (`src/perf.ts`)
+
+```ts
+measure(label, fn)  // times fn(), emits performance.mark/measure + console.debug; no-op in prod
+```
+
+`__DEV__` is injected by esbuild at bundle time (`--define:__DEV__=true/false`). In production (`--define:__DEV__=false`), the dead-code eliminator reduces `measure(label, fn)` to `fn()` — zero overhead.
 
 ### TypeScript types (`src/types.ts`)
 
@@ -310,6 +319,45 @@ While in welcome/results: if query ≥ `MIN_QUERY_LENGTH` and subtitles are load
 ### Background loading
 
 `loadAll` is called after the initial route renders. A progress callback updates `#search-status` with `טוען תמלילים... (N/total)`. When loading completes, if the current route is "results", results are re-rendered (scroll position preserved around the re-render) and highlights re-applied.
+
+---
+
+## Performance
+
+### Measurement
+
+Two complementary approaches:
+
+- **DevTools Performance profiler** — record while typing a query; the flame graph reveals whether time is dominated by JS (search loop, DOM creation) or rendering (style recalc, layout, paint).
+- **`performance.mark` / `performance.measure`** — `src/perf.ts` wraps key call sites with `measure(label, fn)`. Results appear in the DevTools Timings track and as `[perf] label: Xms` in the console. Active in dev builds only (`__DEV__=true`); compiled away in production.
+
+Instrumented call sites (all in `main.ts`):
+
+| Label | What it times |
+|---|---|
+| `search` | `searchEpisodes` — the full scan across all episodes |
+| `render:results` | `renderResults` — DOM construction for result groups |
+| `render:episode` | `renderEpisode` — DOM construction for all transcript lines |
+| `filter:episode` | `applyQueryFilter` — toggling `.hidden` on transcript lines while in episode view |
+
+### Optimization candidates
+
+**Search loop**
+
+| Optimization | Impact | Effort | Notes |
+|---|---|---|---|
+| Precompute lowercase lines at load time | Medium | Low | Store `text.toLowerCase()` alongside each line; eliminates repeated work on every keystroke |
+| Debounce input (~80 ms) | Medium | Low | Skips searches for intermediate keystrokes; already partially mitigated by live-filter-in-episode logic |
+| Move search to a Web Worker | High | Medium | Keeps main thread free during search; requires structured-clone of subtitle data on load |
+
+**Rendering**
+
+| Optimization | Impact | Effort | Notes |
+|---|---|---|---|
+| `DocumentFragment` for batch inserts | Low–Medium | Low | Collect all child nodes into a fragment, do one `appendChild`; avoids per-line reflow in `renderEpisode` |
+| `content-visibility: auto` on `.transcript-list` / `.results-episode` | Medium | Very low | CSS-only; browser skips layout/paint for off-screen sections |
+| Keyed result diffing | Medium | Medium | On live typing, diff new results against current DOM instead of wiping and recreating |
+| Virtual scrolling for episode view | High | High | Only render lines near the viewport; most impactful for long episodes |
 
 ---
 
