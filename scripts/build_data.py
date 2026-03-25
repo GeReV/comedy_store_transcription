@@ -94,9 +94,10 @@ def make_title(dirname: str, ep_num: int) -> str:
     suffix = suffix.replace("_", " ").strip()
     # If suffix looks like a date (digits and dots/spaces only after replacement),
     # join with dots instead of spaces
-    date_like = re.fullmatch(r"(\d{1,2})\s+(\d{1,2})\s+(\d{2,4})", suffix)
-    if date_like:
-        suffix = f"{date_like.group(1)}.{date_like.group(2)}.{date_like.group(3)}"
+    suffix = re.sub(r"-?(\d{1,2})[\s_]+(\d{1,2})[\s_]+(\d{2,4})$", "", suffix)
+    if not suffix:
+        # suffix = f"{date_like.group(1)}.{date_like.group(2)}.{date_like.group(3)}"
+        return f"פרק {ep_num}"
     return f"פרק {ep_num} — {suffix}"
 
 
@@ -154,7 +155,7 @@ def process_2020_episodes() -> list[dict]:
             continue
         ep_num = int(m.group(1))
         ep_id = f"comedy_2020_ep{ep_num}"
-        title = f"Comedy Store 2020 — פרק {ep_num}"
+        title = f"קומדי סטור 2020 — פרק {ep_num}"
         subtitle_file = f"subtitles/{ep_id}.json"
 
         lines = parse_srt(srt_path)
