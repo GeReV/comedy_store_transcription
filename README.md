@@ -20,3 +20,4 @@ If anyone would like to contribute, feel free to build upon this and/or send pul
 
 - Add tools for editing transcriptions?
 - Add tools for merging chapters?
+- Rely on OCR from video where possible?
