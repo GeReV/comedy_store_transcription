@@ -188,7 +188,7 @@ async function handleRoute(route: Route, prevQuery?: string) {
 
     const results = measure("search", () => searchEpisodes(episodeIndex, subs, route.query));
     setStatus(`${results.reduce((s, r) => s + r.totalMatches, 0)} תוצאות`);
-    measure("render:results", () => renderResults(mainPaneEl, results, subs));
+    measure("render:results", () => renderResults(mainPaneEl, results, subs, route.query));
     applyHighlights(route.query, mainPaneEl);
     mainPaneEl.scrollTop = savedScroll;
     return;
@@ -246,7 +246,7 @@ queryEl.addEventListener("input", () => {
   if (q.trim().length >= MIN_QUERY_LENGTH && subs.size > 0) {
     const results = measure("search", () => searchEpisodes(episodeIndex, subs, q));
     setStatus(`${results.reduce((s, r) => s + r.totalMatches, 0)} תוצאות`);
-    measure("render:results", () => renderResults(mainPaneEl, results, subs));
+    measure("render:results", () => renderResults(mainPaneEl, results, subs, q));
     applyHighlights(q, mainPaneEl);
     currentRoute = { kind: "results", query: q };
   } else if (q.trim().length === 0) {
@@ -312,7 +312,7 @@ async function init() {
       const subs = getCachedSubtitles();
       const results = measure("search", () => searchEpisodes(episodeIndex, subs, currentRoute.query));
       setStatus(`${results.reduce((s, r) => s + r.totalMatches, 0)} תוצאות`);
-      measure("render:results", () => renderResults(mainPaneEl, results, subs));
+      measure("render:results", () => renderResults(mainPaneEl, results, subs, currentRoute.query));
       applyHighlights(currentRoute.query, mainPaneEl);
     }
     syncSidebar();

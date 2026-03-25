@@ -1,6 +1,7 @@
 import type { EpisodeSearchResult, EpisodeLines, DisplayEntry } from "../types.js";
 import { MAX_ENTRIES_PER_GROUP, formatTime } from "../search.js";
 import { navigate } from "../main.js";
+import { applyHighlights } from "../highlight.js";
 
 const noResultsEl = document.createElement("p");
 noResultsEl.className = "state-message";
@@ -10,6 +11,7 @@ export function renderResults(
   container: HTMLElement,
   results: EpisodeSearchResult[],
   subtitles: Map<string, EpisodeLines>,
+  query: string,
 ): void {
   container.replaceChildren();
 
@@ -56,19 +58,16 @@ export function renderResults(
     }
 
     if (overflow.length > 0) {
-      const overflowEl = document.createElement("div");
-      overflowEl.className = "entries-overflow hidden";
-      for (const entry of overflow) {
-        overflowEl.appendChild(renderEntry(entry, lines, episode.id));
-      }
-      section.appendChild(overflowEl);
-
       const btn = document.createElement("button");
       btn.className = "show-more-btn";
       btn.textContent = `הצג עוד ${overflow.length} תוצאות`;
       btn.addEventListener("click", () => {
-        overflowEl.classList.remove("hidden");
-        btn.remove();
+        const frag = document.createDocumentFragment();
+        for (const entry of overflow) {
+          frag.appendChild(renderEntry(entry, lines, episode.id));
+        }
+        btn.replaceWith(frag);
+        applyHighlights(query, container);
       });
       section.appendChild(btn);
     }
