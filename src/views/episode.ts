@@ -24,6 +24,7 @@ export function renderEpisode(
   container.appendChild(list);
 
   const lineEls: HTMLElement[] = [];
+  const frag = document.createDocumentFragment();
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
@@ -43,9 +44,11 @@ export function renderEpisode(
 
     el.appendChild(ts);
     el.appendChild(text);
-    list.appendChild(el);
+    frag.appendChild(el);
     lineEls.push(el);
   }
+
+  list.appendChild(frag);
 
   // Apply filter / highlights
   applyQueryFilter(list, lineEls, lines, query);

@@ -24,6 +24,8 @@ export function renderResults(
   summary.textContent = `${totalMatches} תוצאות ב־${results.length} פרקים`;
   container.appendChild(summary);
 
+  const frag = document.createDocumentFragment();
+
   for (const { episode, entries, totalMatches: epTotal } of results) {
     const lines = subtitles.get(episode.id) ?? [];
 
@@ -71,8 +73,10 @@ export function renderResults(
       section.appendChild(btn);
     }
 
-    container.appendChild(section);
+    frag.appendChild(section);
   }
+
+  container.appendChild(frag);
 }
 
 function renderEntry(
