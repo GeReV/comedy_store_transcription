@@ -23,7 +23,7 @@ export const MAX_MERGED_LINES = 10;
  * When true, adjacent/overlapping context windows are merged into a single
  * display entry. When false, each match produces its own independent entry.
  */
-export const MERGE_CONTEXT_ENTRIES = false;
+export const MERGE_CONTEXT_ENTRIES = true;
 
 export function formatTime(seconds: number): string {
   const h = Math.floor(seconds / 3600);
