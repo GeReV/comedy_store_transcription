@@ -1,100 +1,105 @@
-import type { EpisodeMatches } from "../types.js";
-import { MAX_RESULTS, formatTime } from "../search.js";
+import type { EpisodeSearchResult, EpisodeLines, DisplayEntry } from "../types.js";
+import { MAX_ENTRIES_PER_GROUP, formatTime } from "../search.js";
 import { navigate } from "../main.js";
 
 export function renderResults(
   container: HTMLElement,
-  results: EpisodeMatches[],
-  query: string,
+  results: EpisodeSearchResult[],
+  subtitles: Map<string, EpisodeLines>,
 ): void {
   container.innerHTML = "";
 
   if (results.length === 0) {
-    container.innerHTML = `<p class="state-message">לא נמצאו תוצאות עבור "<strong>${escHtml(query)}</strong>"</p>`;
+    container.innerHTML = `<p class="state-message">לא נמצאו תוצאות</p>`;
     return;
   }
 
-  let totalLines = 0;
-  let truncated = false;
+  const totalMatches = results.reduce((s, r) => s + r.totalMatches, 0);
+  const summary = document.createElement("p");
+  summary.className = "results-summary";
+  summary.textContent = `${totalMatches} תוצאות ב־${results.length} פרקים`;
+  container.appendChild(summary);
 
-  for (const { episode, matches } of results) {
-    if (truncated) break;
+  for (const { episode, entries, totalMatches: epTotal } of results) {
+    const lines = subtitles.get(episode.id) ?? [];
 
     const section = document.createElement("div");
     section.className = "results-episode";
 
     const header = document.createElement("div");
     header.className = "results-episode-header";
-    header.innerHTML = `
-      <h2>
-        <a href="#episode/${encodeURIComponent(episode.id)}"
-           data-ep="${escHtml(episode.id)}">
-          ${escHtml(episode.title)}
-        </a>
-      </h2>
-      <span class="match-count">${matches.length} תוצאות</span>
-    `;
-    header.querySelector("a")?.addEventListener("click", (e) => {
-      e.preventDefault();
-      navigate(`episode/${episode.id}`);
-    });
+
+    const titleEl = document.createElement("span");
+    titleEl.className = "results-episode-title";
+    titleEl.textContent = episode.title;
+    titleEl.addEventListener("click", () => navigate(`episode/${episode.id}`));
+
+    const countEl = document.createElement("span");
+    countEl.className = "results-episode-count";
+    countEl.textContent = `${epTotal} תוצאות`;
+
+    header.appendChild(titleEl);
+    header.appendChild(countEl);
     section.appendChild(header);
 
-    for (const match of matches) {
-      if (totalLines >= MAX_RESULTS) {
-        truncated = true;
-        break;
+    const visible = entries.slice(0, MAX_ENTRIES_PER_GROUP);
+    const overflow = entries.slice(MAX_ENTRIES_PER_GROUP);
+
+    for (const entry of visible) {
+      section.appendChild(renderEntry(entry, lines, episode.id));
+    }
+
+    if (overflow.length > 0) {
+      const overflowEl = document.createElement("div");
+      overflowEl.className = "entries-overflow hidden";
+      for (const entry of overflow) {
+        overflowEl.appendChild(renderEntry(entry, lines, episode.id));
       }
+      section.appendChild(overflowEl);
 
-      const item = document.createElement("div");
-      item.className = "result-item";
-      item.setAttribute("role", "button");
-      item.setAttribute("tabindex", "0");
-
-      const targetHash = `episode/${episode.id}/${match.lineIndex}`;
-
-      const lineToHtml = (
-        line: { start: number; text: string } | null,
-        cls: string,
-      ) => {
-        if (!line) return "";
-        return `
-          <div class="result-line ${cls}">
-            <span class="ts">${escHtml(formatTime(line.start))}</span>
-            <span class="text">${escHtml(line.text)}</span>
-          </div>`;
-      };
-
-      item.innerHTML =
-        lineToHtml(match.contextBefore, "context") +
-        lineToHtml(match.line, "match") +
-        lineToHtml(match.contextAfter, "context");
-
-      const onClick = () => navigate(targetHash);
-      item.addEventListener("click", onClick);
-      item.addEventListener("keydown", (e) => {
-        if (e.key === "Enter" || e.key === " ") onClick();
+      const btn = document.createElement("button");
+      btn.className = "show-more-btn";
+      btn.textContent = `הצג עוד ${overflow.length} תוצאות`;
+      btn.addEventListener("click", () => {
+        overflowEl.classList.remove("hidden");
+        btn.remove();
       });
-
-      section.appendChild(item);
-      totalLines++;
+      section.appendChild(btn);
     }
 
     container.appendChild(section);
   }
-
-  if (truncated) {
-    const notice = document.createElement("p");
-    notice.className = "overflow-notice";
-    notice.textContent = `מוצגות ${MAX_RESULTS} תוצאות ראשונות — צמצם את החיפוש לתוצאות מדויקות יותר`;
-    container.appendChild(notice);
-  }
 }
 
-function escHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+function renderEntry(
+  entry: DisplayEntry,
+  lines: EpisodeLines,
+  episodeId: string,
+): HTMLElement {
+  const el = document.createElement("div");
+  el.className = "result-entry";
+
+  for (let i = entry.startIdx; i <= entry.endIdx; i++) {
+    const line = lines[i];
+    if (!line) continue;
+
+    const isMatch = entry.matchIndices.has(i);
+    const row = document.createElement("div");
+    row.className = `result-line ${isMatch ? "match" : "context"}`;
+
+    const ts = document.createElement("span");
+    ts.className = "ts";
+    ts.textContent = formatTime(line.start);
+
+    const text = document.createElement("span");
+    text.className = "text";
+    text.textContent = line.text;
+
+    row.appendChild(ts);
+    row.appendChild(text);
+    row.addEventListener("click", () => navigate(`episode/${episodeId}/${i}`));
+    el.appendChild(row);
+  }
+
+  return el;
 }

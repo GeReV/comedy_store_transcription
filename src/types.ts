@@ -15,14 +15,21 @@ export interface Line {
 export type EpisodeIndex = EpisodeMetadata[];
 export type EpisodeLines = Line[];
 
-export interface LineMatch {
-  line: Line;
-  lineIndex: number;
-  contextBefore: Line | null;
-  contextAfter: Line | null;
+/**
+ * A range of lines to display for one logical match group.
+ * startIdx..endIdx (inclusive) is the display range including context.
+ * matchIndices contains the line indices that are actual search hits.
+ */
+export interface DisplayEntry {
+  startIdx: number;
+  endIdx: number;
+  matchIndices: Set<number>;
 }
 
-export interface EpisodeMatches {
+export interface EpisodeSearchResult {
   episode: EpisodeMetadata;
-  matches: LineMatch[];
+  /** Merged, context-expanded display entries. */
+  entries: DisplayEntry[];
+  /** Total individual matching lines (before context/merging). */
+  totalMatches: number;
 }
