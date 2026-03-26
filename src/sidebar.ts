@@ -1,6 +1,5 @@
 import type { EpisodeIndex, EpisodeLines } from "./types.js";
 import { episodeHasMatch, MIN_QUERY_LENGTH } from "./search.js";
-import { navigate } from "./main.js";
 
 export function renderSidebar(
   container: HTMLElement,
@@ -12,9 +11,14 @@ export function renderSidebar(
     const li = document.createElement("li");
     li.className = "sidebar-item";
     li.dataset["epId"] = ep.id;
-    li.textContent = ep.title;
-    li.title = ep.title;
-    li.addEventListener("click", () => navigate(`episode/${ep.id}`));
+
+    const a = document.createElement("a");
+    a.className = "sidebar-link";
+    a.href = `#episode/${ep.id}`;
+    a.textContent = ep.title;
+    a.title = ep.title;
+
+    li.appendChild(a);
     ul.appendChild(li);
   }
   container.replaceChildren(ul);

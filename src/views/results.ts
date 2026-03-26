@@ -1,6 +1,5 @@
 import type { EpisodeSearchResult, EpisodeLines, DisplayEntry } from "../types.js";
 import { MAX_ENTRIES_PER_GROUP, formatTime } from "../search.js";
-import { navigate } from "../main.js";
 import { applyHighlights } from "../highlight.js";
 
 const noResultsEl = document.createElement("p");
@@ -37,10 +36,10 @@ export function renderResults(
     const header = document.createElement("div");
     header.className = "results-episode-header";
 
-    const titleEl = document.createElement("span");
+    const titleEl = document.createElement("a");
     titleEl.className = "results-episode-title";
+    titleEl.href = `#episode/${episode.id}`;
     titleEl.textContent = episode.title;
-    titleEl.addEventListener("click", () => navigate(`episode/${episode.id}`));
 
     const countEl = document.createElement("span");
     countEl.className = "results-episode-count";
@@ -91,8 +90,9 @@ function renderEntry(
     if (!line) continue;
 
     const isMatch = entry.matchIndices.has(i);
-    const row = document.createElement("div");
+    const row = document.createElement("a");
     row.className = `result-line ${isMatch ? "match" : "context"}`;
+    row.href = `#episode/${episodeId}/${i}`;
 
     const ts = document.createElement("span");
     ts.className = "ts";
@@ -104,7 +104,6 @@ function renderEntry(
 
     row.appendChild(ts);
     row.appendChild(text);
-    row.addEventListener("click", () => navigate(`episode/${episodeId}/${i}`));
     el.appendChild(row);
   }
 

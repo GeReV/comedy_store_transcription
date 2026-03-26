@@ -39,8 +39,8 @@ sepTemplate.setAttribute("aria-hidden", "true");
 sepTemplate.textContent = "‹";
 
 const bcHomeLink = document.createElement("a");
+bcHomeLink.href = "#";
 bcHomeLink.textContent = "ראשי";
-bcHomeLink.addEventListener("click", () => navigateBack(""));
 
 function makeSep(): Node { return sepTemplate.cloneNode(true); }
 
@@ -58,8 +58,7 @@ type Route =
 
 let episodeIndex: EpisodeIndex = [];
 let currentRoute: Route = { kind: "welcome" };
-const scrollStack: number[] = [];
-let isBackNavigation = false;
+let isPopState = false;
 let episodeViewState: {
   episode: EpisodeMetadata;
   lines: EpisodeLines;
@@ -85,9 +84,19 @@ themeToggle.addEventListener("click", () => {
   localStorage.setItem("theme", next);
 });
 
+// ── Scroll persistence ─────────────────────────────────────────────────
+let scrollSaveTimer = 0;
+mainPaneEl.addEventListener("scroll", () => {
+  clearTimeout(scrollSaveTimer);
+  scrollSaveTimer = setTimeout(() => {
+    history.replaceState({ ...history.state, scroll: mainPaneEl.scrollTop }, "");
+  }, 150);
+}, { passive: true });
+
 // ── Navigation ─────────────────────────────────────────────────────────
-export function navigate(hash: string) {
-  scrollStack.push(mainPaneEl.scrollTop);
+function navigate(hash: string) {
+  // Save current scroll before leaving
+  history.replaceState({ ...history.state, scroll: mainPaneEl.scrollTop }, "");
   // When jumping to an episode from in-memory search results (user hasn't pressed
   // Enter, so #search/... isn't in the browser history yet), silently insert it
   // first so the native Back button returns to the results rather than welcome.
@@ -98,12 +107,6 @@ export function navigate(hash: string) {
   ) {
     history.pushState(null, "", `#search/${encodeURIComponent(currentRoute.query)}`);
   }
-  isBackNavigation = false;
-  window.location.hash = hash;
-}
-
-export function navigateBack(hash: string) {
-  isBackNavigation = true;
   window.location.hash = hash;
 }
 
@@ -148,10 +151,8 @@ function setBreadcrumb(route: Route, prevQuery?: string) {
 
     if (prevQuery && prevQuery.trim().length >= MIN_QUERY_LENGTH) {
       const resultsLink = document.createElement("a");
+      resultsLink.href = `#search/${encodeURIComponent(prevQuery)}`;
       resultsLink.textContent = "תוצאות חיפוש";
-      resultsLink.addEventListener("click", () =>
-        navigateBack(`search/${encodeURIComponent(prevQuery)}`),
-      );
       breadcrumbEl.replaceChildren(bcHomeLink, makeSep(), resultsLink, makeSep(), makeSpan(title));
     } else {
       breadcrumbEl.replaceChildren(bcHomeLink, makeSep(), makeSpan(title));
@@ -170,9 +171,7 @@ function syncSidebar() {
 }
 
 // ── Router ─────────────────────────────────────────────────────────────
-async function handleRoute(route: Route, prevQuery?: string) {
-  const savedScroll = isBackNavigation ? (scrollStack.pop() ?? 0) : 0;
-  isBackNavigation = false;
+async function handleRoute(route: Route, prevQuery?: string, savedScroll = 0) {
   currentRoute = route;
   episodeViewState = null;
   clearHighlights();
@@ -330,19 +329,20 @@ async function init() {
 }
 
 // ── Hash routing ───────────────────────────────────────────────────────
-// popstate fires before hashchange on native Back/Forward, letting us flag
-// the navigation so handleRoute restores scroll from the stack.
+// popstate fires before hashchange on native Back/Forward.
 window.addEventListener("popstate", () => {
-  isBackNavigation = true;
+  isPopState = true;
 });
 
 window.addEventListener("hashchange", () => {
+  const savedScroll = isPopState ? (history.state?.scroll ?? 0) : 0;
+  isPopState = false;
   const route = parseHash(window.location.hash);
   const prevQuery =
     currentRoute.kind === "results" ? currentRoute.query :
     currentRoute.kind === "episode" && queryEl.value ? queryEl.value :
     undefined;
-  handleRoute(route, prevQuery);
+  handleRoute(route, prevQuery, savedScroll);
 });
 
 document.addEventListener("DOMContentLoaded", init);
