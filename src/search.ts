@@ -38,7 +38,11 @@ export function formatTime(seconds: number): string {
 /** Quick check: does any line in this episode match the query? */
 export function episodeHasMatch(lines: EpisodeLines, query: string): boolean {
   const q = query.trim().toLowerCase();
-  if (q.length < MIN_QUERY_LENGTH) return false;
+
+  if (q.length < MIN_QUERY_LENGTH) {
+    return false;
+  }
+
   return lines.some((l) => l.text.toLowerCase().includes(q));
 }
 
@@ -53,7 +57,9 @@ function buildDisplayEntries(
   matchIndices: number[],
   totalLines: number,
 ): DisplayEntry[] {
-  if (matchIndices.length === 0) return [];
+  if (matchIndices.length === 0) {
+    return [];
+  }
 
   const C = CONTEXT_LINES;
   const entries: DisplayEntry[] = [];
@@ -87,17 +93,29 @@ export function searchEpisodes(
   query: string,
 ): EpisodeSearchResult[] {
   const q = query.trim().toLowerCase();
-  if (q.length < MIN_QUERY_LENGTH) return [];
+
+  if (q.length < MIN_QUERY_LENGTH) {
+    return [];
+  }
 
   const results: EpisodeSearchResult[] = [];
 
   for (const episode of index) {
     const lines = subtitles.get(episode.id);
-    if (!lines) continue;
+
+    if (!lines) {
+      continue;
+    }
 
     const matchIndices: number[] = [];
     for (let i = 0; i < lines.length; i++) {
-      if (lines[i]!.text.toLowerCase().includes(q)) {
+      const line = lines[i];
+
+      if (!line) {
+        continue;
+      }
+
+      if (line.text.toLowerCase().includes(q)) {
         matchIndices.push(i);
       }
     }

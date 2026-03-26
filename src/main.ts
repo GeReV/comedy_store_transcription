@@ -23,8 +23,8 @@ const sidebarEl    = ensure(document.getElementById("sidebar"), "#sidebar");
 const queryEl      = ensure(document.querySelector<HTMLInputElement>("#query"), "#query");
 const statusEl     = ensure(document.getElementById("search-status"), "#search-status");
 const breadcrumbEl = ensure(document.getElementById("breadcrumb"), "#breadcrumb");
-const themeToggle  = ensure(document.getElementById("theme-toggle"), "#theme-toggle");
-const clearBtn     = ensure(document.querySelector<HTMLButtonElement>("#query-clear"), "#query-clear");
+const themeToggleEl  = ensure(document.getElementById("theme-toggle"), "#theme-toggle");
+const clearBtnEl     = ensure(document.querySelector<HTMLButtonElement>("#query-clear"), "#query-clear");
 
 // ── Cached state message elements ──────────────────────────────────────
 const loadingSubsMsg    = makeStateMsg("טוען תמלילים...");
@@ -74,7 +74,7 @@ function initTheme() {
   }
 }
 
-themeToggle.addEventListener("click", () => {
+themeToggleEl.addEventListener("click", () => {
   const current = document.documentElement.dataset["theme"];
   const isDark =
     current === "dark" ||
@@ -237,7 +237,7 @@ async function handleRoute(route: Route, prevQuery?: string, savedScroll = 0) {
 // ── Search input handling ──────────────────────────────────────────────
 queryEl.addEventListener("input", () => {
   const q = queryEl.value;
-  clearBtn.hidden = q.length === 0;
+  clearBtnEl.hidden = q.length === 0;
 
   // Always sync sidebar highlights as the user types
   syncSidebar();
@@ -279,9 +279,9 @@ queryEl.addEventListener("keydown", (e) => {
 });
 
 // ── Clear button ───────────────────────────────────────────────────────
-clearBtn.addEventListener("click", () => {
+clearBtnEl.addEventListener("click", () => {
   queryEl.value = "";
-  clearBtn.hidden = true;
+  clearBtnEl.hidden = true;
   queryEl.dispatchEvent(new Event("input"));
   queryEl.focus();
 });

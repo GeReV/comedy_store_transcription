@@ -44,7 +44,10 @@ export function updateSidebarState(
 
     const isCurrent = epId === currentEpisodeId;
     li.classList.toggle("current", isCurrent);
-    if (isCurrent) currentEl = li;
+
+    if (isCurrent) {
+      currentEl = li;
+    }
 
     if (filtering) {
       const lines = subtitles.get(epId);

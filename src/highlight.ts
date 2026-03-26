@@ -9,11 +9,17 @@ export const supportsHighlights = "highlights" in CSS;
  * class-based approach in that case).
  */
 export function applyHighlights(query: string, container: Element): void {
-  if (!supportsHighlights) return;
+  if (!supportsHighlights) {
+    return;
+  }
+
   clearHighlights();
 
   const q = query.toLowerCase();
-  if (!q) return;
+
+  if (!q) {
+    return;
+  }
 
   const ranges: Range[] = [];
   const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
@@ -38,6 +44,9 @@ export function applyHighlights(query: string, container: Element): void {
 }
 
 export function clearHighlights(): void {
-  if (!supportsHighlights) return;
+  if (!supportsHighlights) {
+    return;
+  }
+
   CSS.highlights.delete(HIGHLIGHT_NAME);
 }
