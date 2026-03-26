@@ -171,12 +171,18 @@ h1 {
 }
 #theme-toggle:hover { background: var(--surface-alt); }
 
-:root #theme-toggle .icon-dark,
-[data-theme="light"] #theme-toggle .icon-dark  { display: none; }
-[data-theme="dark"]  #theme-toggle .icon-light { display: none; }
+/* Default (light): show sun, hide moon */
+#theme-toggle .icon-dark { display: none; }
+#theme-toggle .icon-light { display: inline; }
+
+/* Explicit dark theme */
+[data-theme="dark"] #theme-toggle .icon-dark  { display: inline; }
+[data-theme="dark"] #theme-toggle .icon-light { display: none; }
+
+/* System dark preference (no explicit theme set) */
 @media (prefers-color-scheme: dark) {
-  :root #theme-toggle .icon-light { display: none; }
-  :root #theme-toggle .icon-dark  { display: inline; }
+  :root:not([data-theme]) #theme-toggle .icon-light { display: none; }
+  :root:not([data-theme]) #theme-toggle .icon-dark  { display: inline; }
 }
 
 /* ── Breadcrumb ──────────────────────────────────────────────────────── */
