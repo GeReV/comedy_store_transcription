@@ -13,19 +13,21 @@ static/                          ← GitHub Pages root (deployed via Actions)
   main.js                        ← compiled bundle (esbuild output), committed
   data/
     episodes.json                ← episode metadata only, generated + committed
+    subtitles.json               ← all episodes combined [{id, lines[]}], generated + committed
+    subtitles.json.gz            ← gzip of subtitles.json, generated + committed
     subtitles/
-      פרק_001-21_12_08.json      ← per-episode subtitle lines, generated + committed
+      פרק_001-21_12_08.json      ← per-episode subtitle lines (used by episode view), generated + committed
       ...
 
 src/
   main.ts                        ← entry point, app state, routing, event wiring
   types.ts                       ← shared TypeScript types
-  utils.ts                       ← assert / ensure / escHtml helpers
+  utils.ts                       ← assert / ensure helpers
   perf.ts                        ← dev-only performance instrumentation (stripped in prod)
   search.ts                      ← search logic, display entry construction
   sidebar.ts                     ← sidebar render + live state updates
   highlight.ts                   ← CSS Custom Highlights API wrapper
-  loader.ts                      ← fetch + cache for episodes.json and subtitle files
+  loader.ts                      ← fetch + cache for episodes.json and subtitle bundle
   views/
     list.ts                      ← welcome view
     results.ts                   ← search results view
@@ -60,21 +62,28 @@ TypeScript version: 6.x. esbuild target: `es2020`.
 
 ### `scripts/build_data.py`
 
-Walks `files/` and produces two outputs.
+Walks `files/` and produces three outputs.
 
 **`static/data/episodes.json`** — metadata array sorted by `num`:
 ```json
 [
-  { "id": "פרק_001-21_12_08", "title": "פרק 1 — 21.12.08", "num": 1,    "subtitle_file": "subtitles/פרק_001-21_12_08.json" },
-  { "id": "comedy_2020_ep1",  "title": "Comedy Store 2020 — פרק 1",     "num": 10001, "subtitle_file": "subtitles/comedy_2020_ep1.json" }
+  { "id": "פרק_001-21_12_08", "title": "פרק 1", "num": 1, "subtitle_file": "subtitles/פרק_001-21_12_08.json" },
+  { "id": "comedy_2020_ep1",  "title": "קומדי סטור 2020 — פרק 1", "num": 10001, "subtitle_file": "subtitles/comedy_2020_ep1.json" }
 ]
 ```
 `num` is used for sort order only. Regular episodes use their episode number (1–108); `Comedy_Store_2020` specials use 10001–10005 to sort after regular episodes.
 
-**`static/data/subtitles/<id>.json`** — array of lines:
+**`static/data/subtitles/<id>.json`** — array of lines for a single episode (used by `loadEpisode`):
 ```json
 [{ "start": 4.07, "end": 5.15, "text": "לא, נמאס" }, ...]
 ```
+
+**`static/data/subtitles.json`** — all episodes combined, ordered by `num`, ~4.1 MB:
+```json
+[{"id":"פרק_001-21_12_08","lines":[...]}, {"id":"פרק_002-...","lines":[...]}, ...]
+```
+
+**`static/data/subtitles.json.gz`** — gzip of `subtitles.json`, ~1.0 MB (75% reduction). Used as the primary load path.
 
 SRT parsing: index line → `HH:MM:SS,mmm --> HH:MM:SS,mmm` → text line(s). Timestamps converted to seconds (float). Multi-line blocks joined with a space.
 
@@ -87,16 +96,17 @@ SRT parsing: index line → `HH:MM:SS,mmm --> HH:MM:SS,mmm` → text line(s). Ti
 ### `src/loader.ts`
 
 - `loadIndex()` — fetches `episodes.json` once; result cached in module-level variable.
-- `loadEpisode(episode)` — fetches `subtitles/<id>.json`; per-episode cache via `Map`.
-- `loadAll(episodes, onProgress?)` — fetches all subtitle files in parallel via `Promise.all`, calling `onProgress(loaded, total)` after each resolves.
+- `loadEpisode(episode)` — fetches `subtitles/<id>.json`; per-episode cache via `Map`. Used when navigating to an individual episode.
+- `loadAll(episodes, onProgress?)` — fetches the full subtitle bundle as a single request. Tries `subtitles.json.gz` first (decompressed via the Compression Streams API); falls back to `subtitles.json` if that fails or the API is unavailable. Streams the response body chunk-by-chunk, calling `onProgress(bytesLoaded, totalBytes)` on each chunk. After all bytes are received, decompresses (if needed) and parses the JSON into `subtitleCache`.
 - `getCachedSubtitles()` — returns the subtitle cache `Map` for synchronous access after loading.
+
+`ProgressCallback = (bytesLoaded: number, totalBytes: number) => void`
 
 ### Utilities (`src/utils.ts`)
 
 ```ts
-assert(condition, message)         // asserts condition — throws Error if falsy
-ensure(val, description)           // unwraps T | null | undefined → T via assert
-escHtml(s)                         // escapes &, <, >, " for safe HTML insertion
+assert(condition, message)   // asserts condition — throws Error if falsy; type: asserts condition
+ensure(val, description)     // unwraps T | null | undefined → T via assert
 ```
 
 ### Performance instrumentation (`src/perf.ts`)
@@ -123,7 +133,7 @@ interface DisplayEntry {
 
 interface EpisodeSearchResult {
   episode: EpisodeMetadata;
-  entries: DisplayEntry[];   // one per match (or merged, see MERGE_CONTEXT_ENTRIES)
+  entries: DisplayEntry[];   // merged display entries (see MERGE_CONTEXT_ENTRIES)
   totalMatches: number;      // total matching lines before context expansion
 }
 ```
@@ -152,7 +162,7 @@ In RTL flexbox, the first flex child (`#sidebar`) renders on the right; `#main-p
 
 Light/dark toggle button (`#theme-toggle`) at the far left (`margin-inline-start: auto`). Persisted to `localStorage`. Default follows `prefers-color-scheme`. `[data-theme="dark"]` on `<html>` enables dark overrides.
 
-CSS custom properties: `--bg`, `--surface`, `--surface-alt`, `--text`, `--text-muted`, `--accent`, `--border`, `--highlight-bg`, `--highlight-text`, `--radius`.
+CSS custom properties: `--bg`, `--surface`, `--surface-alt`, `--text`, `--text-muted`, `--accent`, `--border`, `--highlight-bg`, `--highlight-fg`, `--sidebar-w`, `--radius`, `--shadow`.
 
 ### Search box
 
@@ -168,24 +178,23 @@ Native webkit search cancel button suppressed via `#query::-webkit-search-cancel
 
 ### Welcome view (`src/views/list.ts`)
 
-Rendered when the hash is empty. Shows a single prompt string. Clearing the search from any other view returns here.
+Rendered when the hash is empty. Shows a single prompt string. The element is a module-level constant reused across renders. Clearing the search from any other view returns here.
 
 ### Search results view (`src/views/results.ts`)
 
 Rendered when a query of `MIN_QUERY_LENGTH` (2) or more characters is active and subtitles are loaded.
 
 Structure per episode with matches:
-- Header: episode title (clickable → episode view) + match count.
-- Up to `MAX_ENTRIES_PER_GROUP` (3) `DisplayEntry` blocks, each showing lines `startIdx..endIdx` inclusive. Match lines get class `match`; context lines get class `context`.
-- If more entries exist: a hidden `.entries-overflow` div + "show more" button that reveals them on click.
-- Clicking any result line navigates to the full episode view at that line index.
+- Header: episode title (`<a href="#episode/...">`) + match count.
+- Up to `MAX_ENTRIES_PER_GROUP` (3) `DisplayEntry` blocks, each showing lines `startIdx..endIdx` inclusive. Match lines (`<a href="#episode/<id>/<lineIndex>">`) get class `match`; context lines get class `context`.
+- If more entries exist: a "show more" button. Overflow entry nodes are **not created until the button is clicked** — they are built on demand and the button is replaced with the new nodes in-place.
 
-CSS Highlights API (`applyHighlights`) is called on `mainPaneEl` after every results render so query matches are highlighted throughout the result text.
+CSS Highlights API (`applyHighlights`) is called on `mainPaneEl` after every results render so query matches are highlighted throughout the result text. Also called when overflow entries are revealed.
 
 ### Episode view (`src/views/episode.ts`)
 
 `renderEpisode(container, episode, lines, query, scrollToLine?)`:
-- Renders all lines as `.transcript-line` divs, each with a `.ts` timestamp and `.text` span.
+- Renders all lines as `.transcript-line` divs, each with a `.ts` timestamp and `.text` span. All nodes are collected into a `DocumentFragment` and flushed with a single `appendChild`.
 - Calls `applyQueryFilter` to hide non-matching lines and apply highlights (if query is non-empty).
 - If `scrollToLine` is set, adds `.highlighted` class to that line and scrolls it into view via `requestAnimationFrame` + `scrollIntoView({ behavior: "smooth", block: "center" })`.
 
@@ -198,7 +207,7 @@ When navigating to an episode from a search result (i.e., `route.lineIndex` is s
 
 ### Sidebar (`src/sidebar.ts`)
 
-`renderSidebar(container, index)` — creates the `<ul>` once on page load. Each `<li>` holds the episode title and navigates to that episode on click.
+`renderSidebar(container, index)` — creates the `<ul>` once on page load. Each `<li>` contains an `<a href="#episode/<id>">` link that navigates via the browser's native hash mechanism.
 
 `updateSidebarState(container, subtitles, query, currentEpisodeId?)` — called on every route change and every keystroke. Toggles three CSS classes on each `<li>` without touching the DOM structure:
 - `.current` — the currently viewed episode (highlighted).
@@ -218,18 +227,16 @@ Scrolls the current episode into view within the sidebar using `scrollIntoView({
 | `MIN_QUERY_LENGTH` | `2` | Minimum characters before search activates |
 | `CONTEXT_LINES` | `1` | Lines shown above and below each match |
 | `MAX_ENTRIES_PER_GROUP` | `3` | Entries shown per episode before "show more" |
-| `MAX_MERGED_LINES` | `10` | Max lines in a merged entry (only relevant when merging is on) |
-| `MERGE_CONTEXT_ENTRIES` | `false` | Feature flag — see below |
+| `MAX_MERGED_LINES` | `10` | Max lines in a merged entry |
+| `MERGE_CONTEXT_ENTRIES` | `true` | Adjacent/overlapping context windows are merged |
 
-### `MERGE_CONTEXT_ENTRIES` flag
-
-When `false` (default): each matching line produces its own independent `DisplayEntry` with `CONTEXT_LINES` lines of context above and below. Adjacent matches may produce overlapping context windows but are shown as separate entries.
+### `MERGE_CONTEXT_ENTRIES`
 
 When `true`: adjacent/overlapping context windows are merged into a single `DisplayEntry`. The merged entry is capped at `MAX_MERGED_LINES` total lines; match indices that fall outside the cap are dropped from `matchIndices`.
 
 ### `buildDisplayEntries(matchIndices, totalLines)`
 
-Iterates sorted match indices. For each index `idx`, computes window `[max(0, idx−C), min(last, idx+C)]`. If `MERGE_CONTEXT_ENTRIES` is true and the window overlaps with the previous entry (`start <= prev.endIdx + 1`), extends the previous entry (honouring the line cap). Otherwise pushes a new entry.
+Iterates sorted match indices. For each index `idx`, computes window `[max(0, idx−C), min(last, idx+C)]`. If the window overlaps with the previous entry (`start <= prev.endIdx + 1`), extends the previous entry (honouring the line cap). Otherwise pushes a new entry.
 
 ### `searchEpisodes(index, subtitles, query)`
 
@@ -256,7 +263,7 @@ CSS declaration in `style.css`:
 ```css
 ::highlight(search-match) {
   background-color: var(--highlight-bg);
-  color: var(--highlight-text);
+  color: var(--highlight-fg);
 }
 ```
 
@@ -284,31 +291,21 @@ type Route =
 | `#episode/<id>` | episode, no scroll target |
 | `#episode/<id>/<lineIndex>` | episode, scroll to line |
 
-### Navigation functions
+### Navigation model
 
-```ts
-navigate(hash)      // forward: pushes current mainPaneEl.scrollTop to stack, changes hash
-navigateBack(hash)  // back (breadcrumb): sets isBackNavigation flag, changes hash
-```
+All navigable elements are `<a href="#...">` links. The browser changes the hash natively; `hashchange` is the sole routing callback. There are no `click` handlers on links.
 
-Breadcrumb back-links use `navigateBack()`; all other navigation (sidebar clicks, result row clicks, Enter in search) uses `navigate()`.
+`navigate(hash)` — used only for programmatic navigation (Enter key, live-search-to-episode history insertion). Saves the current scroll to `history.state` before changing the hash. When navigating to an episode from in-memory search results (the `#search/...` entry isn't in browser history yet), silently inserts it via `pushState` first so the native Back button returns to the results.
 
-### Navigation stack (scroll restoration)
+### Scroll persistence
 
-`scrollStack: number[]` and `isBackNavigation: boolean` are module-level state.
+A debounced (150 ms) `scroll` listener writes `mainPaneEl.scrollTop` into `history.state` via `replaceState`. On `popstate` (Back/Forward), `isPopState` is set to `true`; `hashchange` reads `history.state.scroll` and passes it as `savedScroll` to `handleRoute`. Forward navigations restore to 0.
 
-- `navigate()` pushes `mainPaneEl.scrollTop` before changing the hash.
-- `navigateBack()` sets `isBackNavigation = true` before changing the hash.
-- At the top of `handleRoute`: if `isBackNavigation`, `savedScroll = scrollStack.pop() ?? 0`; otherwise `savedScroll = 0`.
-- After rendering, `mainPaneEl.scrollTop = savedScroll` — synchronously for welcome/results, via `requestAnimationFrame` for episode (to let the DOM settle after render).
-- Episode views arriving with a `lineIndex` skip scroll restoration entirely; `scrollIntoView` handles positioning.
+### `handleRoute(route, prevQuery?, savedScroll = 0)`
 
-### `handleRoute(route, prevQuery?)`
-
-1. Computes `savedScroll`; resets `isBackNavigation`.
-2. Updates `currentRoute`, clears highlights, updates breadcrumb and sidebar.
-3. Dispatches to the appropriate render function.
-4. Restores scroll.
+1. Updates `currentRoute`, clears highlights, updates breadcrumb and sidebar.
+2. Dispatches to the appropriate render function.
+3. Restores scroll — synchronously for welcome/results, via `requestAnimationFrame` for episode (to let the DOM settle after render). Episode views with a `lineIndex` skip scroll restoration.
 
 ### Live search (input event)
 
@@ -318,7 +315,7 @@ While in welcome/results: if query ≥ `MIN_QUERY_LENGTH` and subtitles are load
 
 ### Background loading
 
-`loadAll` is called after the initial route renders. A progress callback updates `#search-status` with `טוען תמלילים... (N/total)`. When loading completes, if the current route is "results", results are re-rendered (scroll position preserved around the re-render) and highlights re-applied.
+`loadAll` is called after the initial route renders. A progress callback updates `#search-status` with a byte percentage (`טוען תמלילים... 42%`). When loading completes, if the current route is "results", results are re-rendered and highlights re-applied.
 
 ---
 
@@ -340,23 +337,23 @@ Instrumented call sites (all in `main.ts`):
 | `render:episode` | `renderEpisode` — DOM construction for all transcript lines |
 | `filter:episode` | `applyQueryFilter` — toggling `.hidden` on transcript lines while in episode view |
 
-### Optimization candidates
+### Optimizations implemented
 
-**Search loop**
+| Optimization | Where |
+|---|---|
+| Single gzip bundle load (114 fetches → 1, 4.1 MB → 1 MB) | `loader.ts`, `build_data.py` |
+| Deferred overflow DOM nodes (built on "show more" click only) | `views/results.ts` |
+| `DocumentFragment` for batch inserts | `views/episode.ts`, `views/results.ts` |
+| `content-visibility: auto` on `.transcript-line` and `.results-episode` | `style.css` |
+| Merged context entries (`MERGE_CONTEXT_ENTRIES = true`) | `search.ts` |
+
+### Remaining optimization candidates
 
 | Optimization | Impact | Effort | Notes |
 |---|---|---|---|
 | Precompute lowercase lines at load time | Medium | Low | Store `text.toLowerCase()` alongside each line; eliminates repeated work on every keystroke |
-| Debounce input (~80 ms) | Medium | Low | Skips searches for intermediate keystrokes; already partially mitigated by live-filter-in-episode logic |
-| Move search to a Web Worker | High | Medium | Keeps main thread free during search; requires structured-clone of subtitle data on load |
-
-**Rendering**
-
-| Optimization | Impact | Effort | Notes |
-|---|---|---|---|
-| `DocumentFragment` for batch inserts | Low–Medium | Low | Collect all child nodes into a fragment, do one `appendChild`; avoids per-line reflow in `renderEpisode` |
-| `content-visibility: auto` on `.transcript-list` / `.results-episode` | Medium | Very low | CSS-only; browser skips layout/paint for off-screen sections |
-| Keyed result diffing | Medium | Medium | On live typing, diff new results against current DOM instead of wiping and recreating |
+| Debounce input (~80 ms) | Medium | Low | Skips searches for intermediate keystrokes |
+| Move search to a Web Worker | High | Medium | Keeps main thread free during search; requires structured-clone of subtitle data |
 | Virtual scrolling for episode view | High | High | Only render lines near the viewport; most impactful for long episodes |
 
 ---
