@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>קומדי סטור — חיפוש</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="top-bar">
+    <div id="top-bar-inner">
+      <h1>קומדי סטור</h1>
+      <div id="search-bar">
+        <div class="query-wrap">
+          <input
+            id="query"
+            type="search"
+            placeholder="חפש בתמלילים..."
+            autocomplete="off"
+            autocorrect="off"
+            spellcheck="false"
+          >
+          <button id="query-clear" aria-label="נקה חיפוש" hidden>✕</button>
+        </div>
+        <span id="search-status" aria-live="polite"></span>
+      </div>
+      <button id="theme-toggle" aria-label="החלף ערכת צבעים" title="החלף ערכת צבעים">
+        <span class="icon-light">☀️</span>
+        <span class="icon-dark">🌙</span>
+      </button>
+    </div>
+    <nav id="breadcrumb" aria-label="ניווט"></nav>
+  </div>
+
+  <div id="layout">
+    <aside id="sidebar" aria-label="רשימת פרקים"></aside>
+    <main id="main-pane" aria-live="polite"></main>
+  </div>
+
+  <script src="main.js"></script>
+</body>
+</html>
