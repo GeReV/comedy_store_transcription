@@ -378,3 +378,14 @@ h1 {
   padding: 3rem 1rem;
   font-size: 1rem;
 }
+
+#site-footer {
+  text-align: right;
+  padding: .6rem 1rem;
+  font-size: .8rem;
+  color: var(--text-muted);
+  border-top: 1px solid var(--border);
+}
+#site-footer p { margin: 0; }
+#site-footer a { color: var(--text-muted); text-decoration: underline; }
+#site-footer a:hover { color: var(--accent); }
