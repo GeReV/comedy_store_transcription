@@ -2,7 +2,10 @@
 Walks files/, parses every .srt file, and emits:
   static/data/episodes.json          — episode metadata array
   static/data/subtitles/<id>.json    — per-episode line arrays
+  static/data/subtitles.json         — all episodes combined [{id, lines[]}]
+  static/data/subtitles.json.gz      — gzip of the above
 """
+import gzip
 import json
 import os
 import re
@@ -101,9 +104,10 @@ def make_title(dirname: str, ep_num: int) -> str:
     return f"פרק {ep_num} — {suffix}"
 
 
-def process_regular_episodes() -> list[dict]:
+def process_regular_episodes() -> tuple[list[dict], dict[str, list]]:
     """Process all פרק_NNN... directories, one SRT per directory."""
     episodes = []
+    all_lines: dict[str, list] = {}
     for ep_dir in sorted(FILES_DIR.iterdir()):
         if not ep_dir.is_dir():
             continue
@@ -128,6 +132,7 @@ def process_regular_episodes() -> list[dict]:
             encoding="utf-8",
         )
 
+        all_lines[ep_id] = lines
         episodes.append(
             {
                 "id": ep_id,
@@ -138,16 +143,17 @@ def process_regular_episodes() -> list[dict]:
         )
         print(f"  {ep_id}: {len(lines)} lines")
 
-    return episodes
+    return episodes, all_lines
 
 
-def process_2020_episodes() -> list[dict]:
+def process_2020_episodes() -> tuple[list[dict], dict[str, list]]:
     """Process Comedy_Store_2020/ — individual ep files only."""
     ep2020_dir = FILES_DIR / "Comedy_Store_2020"
     if not ep2020_dir.exists():
-        return []
+        return [], {}
 
     episodes = []
+    all_lines: dict[str, list] = {}
     # Match only comedy_store_2020_epN.srt (skip the combined ComedyStore_2020_e1-3.srt)
     for srt_path in sorted(ep2020_dir.glob("comedy_store_2020_ep*.srt")):
         m = re.search(r"ep(\d+)", srt_path.stem)
@@ -165,6 +171,7 @@ def process_2020_episodes() -> list[dict]:
             encoding="utf-8",
         )
 
+        all_lines[ep_id] = lines
         # Sort 2020 eps after all regular episodes (num 10001+)
         episodes.append(
             {
@@ -176,19 +183,20 @@ def process_2020_episodes() -> list[dict]:
         )
         print(f"  {ep_id}: {len(lines)} lines")
 
-    return episodes
+    return episodes, all_lines
 
 
 def main():
     OUT_DIR.mkdir(parents=True, exist_ok=True)
 
     print("Processing regular episodes...")
-    regular = process_regular_episodes()
+    regular, regular_lines = process_regular_episodes()
 
     print("Processing Comedy Store 2020 episodes...")
-    special = process_2020_episodes()
+    special, special_lines = process_2020_episodes()
 
     all_episodes = sorted(regular + special, key=lambda e: e["num"])
+    all_lines = {**regular_lines, **special_lines}
 
     index_path = OUT_DIR / "episodes.json"
     index_path.write_text(
@@ -196,7 +204,16 @@ def main():
         encoding="utf-8",
     )
 
+    # Combined subtitle bundle — array of {id, lines} ordered by episode number
+    combined = [{"id": ep["id"], "lines": all_lines[ep["id"]]} for ep in all_episodes]
+    combined_json = json.dumps(combined, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    (OUT_DIR / "subtitles.json").write_bytes(combined_json)
+    with gzip.open(OUT_DIR / "subtitles.json.gz", "wb") as f:
+        f.write(combined_json)
+
     print(f"\nDone. {len(all_episodes)} episodes → {index_path}")
+    print(f"  subtitles.json:    {len(combined_json) // 1024} KB")
+    print(f"  subtitles.json.gz: {(OUT_DIR / 'subtitles.json.gz').stat().st_size // 1024} KB")
 
 
 if __name__ == "__main__":

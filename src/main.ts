@@ -309,12 +309,12 @@ async function init() {
   await handleRoute(initialRoute);
   setStatus("");
 
-  // Background-load all subtitle files
+  // Background-load all subtitle files as a single bundle
   loadAll(episodeIndex, (loaded, total) => {
     if (currentRoute.kind !== "episode") {
-      setStatus(`טוען תמלילים... (${loaded}/${total})`);
+      const pct = total > 0 ? ` ${Math.round(loaded / total * 100)}%` : "";
+      setStatus(`טוען תמלילים...${pct}`);
     }
-    syncSidebar();
   }).then(() => {
     setStatus("");
     if (currentRoute.kind === "results") {
