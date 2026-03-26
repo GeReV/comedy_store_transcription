@@ -36,7 +36,7 @@ const loadErrorMsg      = makeStateMsg("שגיאה בטעינת רשימת הפ�
 const sepTemplate = document.createElement("span");
 sepTemplate.className = "sep";
 sepTemplate.setAttribute("aria-hidden", "true");
-sepTemplate.textContent = "‹";
+sepTemplate.textContent = "›";
 
 const bcHomeLink = document.createElement("a");
 bcHomeLink.href = "#";
