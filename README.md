@@ -1,4 +1,4 @@
-# הקומדי סטור — התמלילים
+# The Comedy Store transcriptions
 
 This repo contains a [whisper.cpp](https://github.com/ggml-org/whisper.cpp) transcription of (as far as I can tell) all episodes of the Israeli TV show [הקומדי סטור (The Comedy Store)](https://he.wikipedia.org/wiki/%D7%94%D7%A7%D7%95%D7%9E%D7%93%D7%99_%D7%A1%D7%98%D7%95%D7%A8), plus a searchable website built on top of them.
 
