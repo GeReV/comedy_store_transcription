@@ -6,7 +6,7 @@
     [string] $To
 )
 
-Get-ChildItem -Recurse .\files\ | Where-Object { $_.Extension -in ".srt", ".json" } | ForEach-Object {
+Get-ChildItem -Recurse ..\files\ | Where-Object { $_.Extension -in ".srt", ".json" } | ForEach-Object {
     Write-Output $_
 
     if (Select-String -Path $_ -Pattern $From)

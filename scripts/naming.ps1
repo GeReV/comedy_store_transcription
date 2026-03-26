@@ -1,4 +1,4 @@
-Get-ChildItem -Recurse .\files\ | ForEach-Object {
+Get-ChildItem -Recurse ..\files2\ | ForEach-Object {
 	$name = $_.Name
 
 	if ( $name -match "פרק_([0-9]+)(.*)" ){
