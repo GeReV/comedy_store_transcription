@@ -83,6 +83,19 @@ class ChapterList:
     def can_redo(self) -> bool:
         return self._undo_stack.can_redo
 
+    def move_boundary(self, index: int, delta_ns: int) -> None:
+        if index == 0:
+            return
+        before = self._snapshot()
+        new_start = self._chapters[index].start_ns + delta_ns
+        min_start = self._chapters[index - 1].start_ns + self.frame_ns
+        max_start = self._chapters[index].end_ns - self.frame_ns
+        new_start = max(min_start, min(max_start, new_start))
+        self._chapters[index - 1].end_ns = new_start
+        self._chapters[index].start_ns = new_start
+        after = self._snapshot()
+        self._record(before, after)
+
     def split(self, index: int, split_ns: int) -> None:
         ch = self._chapters[index]
         if not (ch.start_ns < split_ns < ch.end_ns):

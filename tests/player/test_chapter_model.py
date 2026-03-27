@@ -163,3 +163,46 @@ def test_split_undo():
     cl.undo()
     assert len(cl) == 3
     assert cl[1].name == "B"
+
+
+def test_move_boundary():
+    cl = _make_list()
+    cl.frame_ns = 1_000_000  # 1ms frame for test clarity
+    cl.move_boundary(1, 1_000_000_000)   # shift ch[1] start +1s
+    assert cl[0].end_ns == 6_000_000_000
+    assert cl[1].start_ns == 6_000_000_000
+
+
+def test_move_boundary_clamped_min():
+    cl = _make_list()
+    cl.frame_ns = 1_000_000_000  # 1s frame
+    # Shift ch[1] start so far left it would make ch[0] < 1 frame
+    cl.move_boundary(1, -10_000_000_000)
+    # ch[0] must be at least frame_ns (1s) wide: start=0, so min end=1_000_000_000
+    assert cl[1].start_ns == 1_000_000_000
+    assert cl[0].end_ns == 1_000_000_000
+
+
+def test_move_boundary_clamped_max():
+    cl = _make_list()
+    cl.frame_ns = 1_000_000_000  # 1s frame
+    # Shift ch[1] start so far right it would make ch[1] < 1 frame
+    cl.move_boundary(1, 10_000_000_000)
+    # ch[1] end=10s, so max start = 10s - 1s = 9s
+    assert cl[1].start_ns == 9_000_000_000
+    assert cl[0].end_ns == 9_000_000_000
+
+
+def test_move_boundary_noop_index_zero():
+    cl = _make_list()
+    cl.move_boundary(0, 1_000_000_000)
+    assert cl[0].start_ns == 0  # unchanged
+
+
+def test_move_boundary_undo():
+    cl = _make_list()
+    cl.frame_ns = 1_000_000
+    cl.move_boundary(1, 1_000_000_000)
+    cl.undo()
+    assert cl[0].end_ns == 5_000_000_000
+    assert cl[1].start_ns == 5_000_000_000
