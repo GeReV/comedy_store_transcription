@@ -92,3 +92,20 @@ def test_current_index_beyond_end():
 def test_current_index_empty():
     cl = ChapterList([])
     assert cl.current_index(0) == -1
+
+
+def test_rename():
+    cl = _make_list()
+    cl.rename(1, "New Name")
+    assert cl[1].name == "New Name"
+    assert cl[0].name == "A"  # others unchanged
+
+
+def test_rename_undo_redo():
+    cl = _make_list()
+    cl.rename(0, "X")
+    assert cl[0].name == "X"
+    cl.undo()
+    assert cl[0].name == "A"
+    cl.redo()
+    assert cl[0].name == "X"
