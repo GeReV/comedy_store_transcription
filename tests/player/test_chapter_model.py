@@ -1,4 +1,4 @@
-from scripts.player.chapter_model import Chapter, UndoStack
+from scripts.player.chapter_model import Chapter, UndoStack, ChapterList
 
 
 def test_chapter_fields():
@@ -52,3 +52,43 @@ def test_undo_stack_push_truncates_redo_history():
     assert not stack.can_redo
     stack.undo()
     assert log[-1] == "u3"
+
+
+def _make_list() -> ChapterList:
+    return ChapterList([
+        Chapter(0, 5_000_000_000, "A"),
+        Chapter(5_000_000_000, 10_000_000_000, "B"),
+        Chapter(10_000_000_000, 20_000_000_000, "C"),
+    ])
+
+
+def test_chapterlist_len_and_getitem():
+    cl = _make_list()
+    assert len(cl) == 3
+    assert cl[0].name == "A"
+    assert cl[2].name == "C"
+
+
+def test_chapterlist_chapters_returns_copy():
+    cl = _make_list()
+    chapters = cl.chapters
+    chapters[0].name = "MUTATED"
+    assert cl[0].name == "A"  # original unchanged
+
+
+def test_current_index_within_chapter():
+    cl = _make_list()
+    assert cl.current_index(0) == 0
+    assert cl.current_index(4_999_999_999) == 0
+    assert cl.current_index(5_000_000_000) == 1
+    assert cl.current_index(15_000_000_000) == 2
+
+
+def test_current_index_beyond_end():
+    cl = _make_list()
+    assert cl.current_index(99_000_000_000) == 2
+
+
+def test_current_index_empty():
+    cl = ChapterList([])
+    assert cl.current_index(0) == -1
