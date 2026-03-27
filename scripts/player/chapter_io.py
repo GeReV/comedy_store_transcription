@@ -35,7 +35,39 @@ class MatroskaIO:
         return chapters
 
     def write(self, chapters: list[Chapter], path: Path) -> None:
-        raise NotImplementedError
+        impl = getDOMImplementation()
+        doc = impl.createDocument(
+            None, "Chapters",
+            impl.createDocumentType("Chapters", None, "matroskachapters.dtd"),
+        )
+        root = doc.documentElement
+        edition = doc.createElement("EditionEntry")
+        root.appendChild(edition)
+
+        for ch in chapters:
+            atom = doc.createElement("ChapterAtom")
+
+            start_el = doc.createElement("ChapterTimeStart")
+            start_el.appendChild(doc.createTextNode(str(ch.start_ns)))
+            atom.appendChild(start_el)
+
+            end_el = doc.createElement("ChapterTimeEnd")
+            end_el.appendChild(doc.createTextNode(str(ch.end_ns)))
+            atom.appendChild(end_el)
+
+            display = doc.createElement("ChapterDisplay")
+            string_el = doc.createElement("ChapterString")
+            string_el.appendChild(doc.createTextNode(ch.name))
+            display.appendChild(string_el)
+            lang_el = doc.createElement("ChapterLanguage")
+            lang_el.appendChild(doc.createTextNode("heb"))
+            display.appendChild(lang_el)
+            atom.appendChild(display)
+
+            edition.appendChild(atom)
+
+        with open(path, "w", encoding="utf-8") as f:
+            doc.writexml(f, addindent="  ", newl="\n", encoding="UTF-8")
 
 
 # Registry: maps lowercase file extension(s) to IO instance.
