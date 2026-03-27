@@ -20,6 +20,7 @@ class TimelineWidget(QWidget):
         super().__init__(parent)
         self._chapters: ChapterList | None = None
         self._position_ns: int = 0
+        self._duration_ns: int = 0
         self.setMinimumHeight(50)
         self.setMaximumHeight(50)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -32,14 +33,23 @@ class TimelineWidget(QWidget):
         self._position_ns = position_ns
         self.update()
 
-    def paintEvent(self, event) -> None:  # type: ignore[override]
-        if self._chapters is None or len(self._chapters) == 0:
-            return
+    def set_duration(self, ns: int) -> None:
+        self._duration_ns = ns
+        self.update()
 
-        first_ns = self._chapters[0].start_ns
-        last_ns = self._chapters[len(self._chapters) - 1].end_ns
-        total_ns = last_ns - first_ns
-        if total_ns == 0:
+    def paintEvent(self, event) -> None:  # type: ignore[override]
+        has_chapters = self._chapters is not None and len(self._chapters) > 0
+
+        if has_chapters:
+            first_ns = self._chapters[0].start_ns
+            last_ns = self._chapters[len(self._chapters) - 1].end_ns
+            total_ns = last_ns - first_ns
+            if total_ns == 0:
+                return
+        elif self._duration_ns > 0:
+            first_ns = 0
+            total_ns = self._duration_ns
+        else:
             return
 
         painter = QPainter(self)
@@ -49,21 +59,23 @@ class TimelineWidget(QWidget):
         def to_x(ns: int) -> int:
             return int((ns - first_ns) / total_ns * w)
 
-        current_idx = self._chapters.current_index(self._position_ns)
-
-        for i, ch in enumerate(self._chapters.chapters):
-            x1 = to_x(ch.start_ns)
-            x2 = to_x(ch.end_ns)
-            color = _CURRENT_COLORS[i % 2] if i == current_idx else _CHAPTER_COLORS[i % 2]
-            painter.fillRect(x1, 0, x2 - x1 - 1, h, color)
-
-            if x2 - x1 > 20:
-                painter.setPen(_TEXT_COLOR)
-                painter.drawText(
-                    x1 + 3, 0, x2 - x1 - 6, h,
-                    Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft,
-                    ch.name,
-                )
+        if has_chapters:
+            current_idx = self._chapters.current_index(self._position_ns)
+            for i, ch in enumerate(self._chapters.chapters):
+                x1 = to_x(ch.start_ns)
+                x2 = to_x(ch.end_ns)
+                color = _CURRENT_COLORS[i % 2] if i == current_idx else _CHAPTER_COLORS[i % 2]
+                painter.fillRect(x1, 0, x2 - x1 - 1, h, color)
+                if x2 - x1 > 20:
+                    painter.setPen(_TEXT_COLOR)
+                    painter.drawText(
+                        x1 + 3, 0, x2 - x1 - 6, h,
+                        Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft,
+                        ch.name,
+                    )
+        else:
+            # Video-only state: plain scrub bar, no chapter segments
+            painter.fillRect(0, 0, w, h, QColor(60, 60, 60))
 
         # Playhead
         px = to_x(self._position_ns)
@@ -75,11 +87,16 @@ class TimelineWidget(QWidget):
         painter.drawPolygon(triangle)
 
     def mousePressEvent(self, event) -> None:  # type: ignore[override]
-        if self._chapters is None or len(self._chapters) == 0:
+        has_chapters = self._chapters is not None and len(self._chapters) > 0
+        if has_chapters:
+            first_ns = self._chapters[0].start_ns
+            last_ns = self._chapters[len(self._chapters) - 1].end_ns
+            total_ns = last_ns - first_ns
+        elif self._duration_ns > 0:
+            first_ns = 0
+            total_ns = self._duration_ns
+        else:
             return
-        first_ns = self._chapters[0].start_ns
-        last_ns = self._chapters[len(self._chapters) - 1].end_ns
-        total_ns = last_ns - first_ns
         if total_ns == 0:
             return
         frac = event.position().x() / self.width()
