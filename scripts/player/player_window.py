@@ -6,10 +6,10 @@ from pathlib import Path
 from PyQt6.QtCore import QEvent, QTimer, QUrl, Qt
 from PyQt6.QtMultimedia import QAudioOutput, QMediaMetaData, QMediaPlayer
 from PyQt6.QtMultimediaWidgets import QVideoWidget
-from PyQt6.QtWidgets import QInputDialog, QMainWindow, QVBoxLayout, QWidget
+from PyQt6.QtWidgets import QInputDialog, QLabel, QMainWindow, QVBoxLayout, QLayout, QWidget, QSizePolicy
 
 from .chapter_io import get_io, MatroskaIO, output_path_for
-from .chapter_model import ChapterList
+from .chapter_model import Chapter, ChapterList
 from .timeline_widget import TimelineWidget
 
 
@@ -20,9 +20,11 @@ class PlayerWindow(QMainWindow):
 
         self._output_path: Path | None = None
         self._frame_ns: int = 0
+        self._duration_ns: int = 0
         self._base_title = "Chapter Player"
         self._dirty = False
 
+        self._loaded_chapters: list[Chapter] = []  # chapters as read from file (with leading N/A)
         self._chapters = ChapterList([])
 
         self._video_widget = QVideoWidget()
@@ -43,6 +45,7 @@ class PlayerWindow(QMainWindow):
         layout.setSpacing(0)
         layout.addWidget(self._video_widget)
         layout.addWidget(self._timeline)
+        layout.addWidget(self._build_shortcuts_bar())
         self.setCentralWidget(central)
 
         self._timer = QTimer()
@@ -60,6 +63,8 @@ class PlayerWindow(QMainWindow):
     def load_media(self, path: Path) -> None:
         """Load a media file. Clears any previously loaded chapters."""
         self._frame_ns = 0
+        self._duration_ns = 0
+        self._loaded_chapters = []
         self._chapters = ChapterList([])
         self._output_path = None
         self._base_title = path.name
@@ -68,7 +73,6 @@ class PlayerWindow(QMainWindow):
         self._timeline.set_chapters(self._chapters)
         self._timeline.set_duration(0)
         self._player.setSource(QUrl.fromLocalFile(str(path.resolve())))
-        self._player.play()
         self.statusBar().showMessage("Drop .chapters.xml to add chapters")
 
     def load_chapters(self, path: Path, output_path: Path) -> None:
@@ -76,7 +80,11 @@ class PlayerWindow(QMainWindow):
         self._output_path = output_path
         self._dirty = False
         self._refresh_title()
-        self._chapters = ChapterList(get_io(path).read(path))
+        raw = get_io(path).read(path)
+        if raw and raw[0].start_ns > 0:
+            raw = [Chapter(start_ns=0, end_ns=raw[0].start_ns, name="N/A")] + raw
+        self._loaded_chapters = raw
+        self._chapters = ChapterList(self._with_trailing(raw))
         self._timeline.set_chapters(self._chapters)
         self._update_status()
 
@@ -124,15 +132,19 @@ class PlayerWindow(QMainWindow):
                 self._frame_ns = 0
 
     def _on_duration_changed(self, duration_ms: int) -> None:
-        self._timeline.set_duration(duration_ms * 1_000_000)
+        self._duration_ns = duration_ms * 1_000_000
+        self._timeline.set_duration(self._duration_ns)
+        if self._loaded_chapters:
+            self._chapters = ChapterList(self._with_trailing(self._loaded_chapters))
+            self._timeline.set_chapters(self._chapters)
 
     def _on_timer(self) -> None:
         pos_ns = self._player.position() * 1_000_000
         self._timeline.set_position(pos_ns)
         self._update_status()
 
-    def _on_seek_requested(self, position_ns: int) -> None:
-        self._player.setPosition(position_ns // 1_000_000)
+    def _on_seek_requested(self, position_ms: int) -> None:
+        self._player.setPosition(position_ms)
 
     # --- keyboard ---
 
@@ -223,6 +235,70 @@ class PlayerWindow(QMainWindow):
 
     # --- private helpers ---
 
+    def _build_shortcuts_bar(self) -> QWidget:
+        bar = QWidget()
+        bar.setStyleSheet("background: #1a1a1a;")
+        bar.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed)
+        layout = QVBoxLayout(bar)
+        layout.setVerticalSizeConstraint(QLayout.SizeConstraint.SetDefaultConstraint)
+        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setSpacing(8)
+
+        def key(k: str) -> str:
+            return (
+                f'<span style="background:#2e2e2e;border:1px solid #555;'
+                f'border-radius:3px;padding:0 3px;font-family:monospace;'
+                f'font-size:12px;color:#ccc;">{k}</span>'
+            )
+
+        def sep() -> str:
+            return '<span style="color:#444;">  |  </span>'
+
+        def row(items: list[tuple[str, str]]) -> str:
+            parts = [
+                f'{keys}<span style="color:#777;font-size:12px;"> {desc}</span>'
+                for keys, desc in items
+            ]
+            return sep().join(parts)
+
+        rows = [
+            row([
+                (key("Space"), "Play/Pause"),
+                (f'{key("[")} {key("]")}', "Prev/Next chapter"),
+                (key("S"), "Split"),
+                (key("Del"), "Merge with prev"),
+                (key("R"), "Rename"),
+                (key("Ctrl+S"), "Save"),
+                (key("Ctrl+Z"), "Undo"),
+                (key("Ctrl+Shift+Z"), "Redo"),
+            ]),
+            row([
+                (f'{key("←")} {key("→")}', "±5s"),
+                (f'{key("Alt+←")} {key("Alt+→")}', "±15s"),
+                (f'{key("Ctrl+←")} {key("Ctrl+→")}', "±1min"),
+                (f'{key("Home")} {key("End")}', "Start/End"),
+                (f'{key(",")} {key(".")}', "Frame step"),
+                (f'{key("Shift+,")} {key("Shift+.")}', "Nudge ±1 frame"),
+                (f'{key("Shift+←")} {key("Shift+→")}', "Nudge ±1s"),
+                (f'{key("Ctrl+Shift+←")} {key("Ctrl+Shift+→")}', "Nudge ±5s"),
+            ]),
+        ]
+
+        for r in rows:
+            lbl = QLabel(r)
+
+            lbl.setTextFormat(Qt.TextFormat.RichText)
+            layout.addWidget(lbl)
+
+        return bar
+
+    def _with_trailing(self, chapters: list[Chapter]) -> list[Chapter]:
+        if not chapters or self._duration_ns == 0:
+            return chapters
+        if chapters[-1].end_ns < self._duration_ns:
+            return chapters + [Chapter(start_ns=chapters[-1].end_ns, end_ns=self._duration_ns, name="N/A")]
+        return chapters
+
     def _refresh_title(self) -> None:
         self.setWindowTitle(self._base_title + (" *" if self._dirty else ""))
 
@@ -238,8 +314,17 @@ class PlayerWindow(QMainWindow):
         self._player.setPosition(max(0, self._player.position() + delta_ms))
 
     def _jump_chapter(self, direction: int) -> None:
-        idx = self._chapters.current_index(self._pos_ns()) + direction
-        if 0 <= idx < len(self._chapters):
+        pos_ns = self._pos_ns()
+        idx = self._chapters.current_index(pos_ns)
+        if direction == -1 and idx >= 0:
+            chapter_start_ns = self._chapters[idx].start_ns
+            if pos_ns - chapter_start_ns > 1_000_000_000 or idx == 0:
+                self._player.setPosition(chapter_start_ns // 1_000_000)
+                return
+        idx += direction
+        if idx >= len(self._chapters):
+            self._player.setPosition(self._player.duration())
+        elif idx >= 0:
             self._player.setPosition(self._chapters[idx].start_ns // 1_000_000)
 
     def _step_frame(self, direction: int) -> None:
@@ -312,7 +397,10 @@ class PlayerWindow(QMainWindow):
         ch = self._chapters[idx]
         total_s = pos_ns // 1_000_000_000
         h, m, s = total_s // 3600, (total_s % 3600) // 60, total_s % 60
+        frame_str = ""
+        if self._frame_ns > 0:
+            frame_str = f"  |  frame {pos_ns // self._frame_ns}"
         self.statusBar().showMessage(
             f"Chapter {idx + 1}/{len(self._chapters)}: {ch.name}  |  "
-            f"{h:02d}:{m:02d}:{s:02d}"
+            f"{h:02d}:{m:02d}:{s:02d}{frame_str}"
         )

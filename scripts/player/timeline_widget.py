@@ -14,7 +14,7 @@ _TEXT_COLOR = QColor(255, 255, 255, 200)
 
 
 class TimelineWidget(QWidget):
-    seek_requested = pyqtSignal(int)  # nanoseconds
+    seek_requested = pyqtSignal(int)  # milliseconds
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -107,4 +107,4 @@ class TimelineWidget(QWidget):
         if total_ns == 0:
             return
         frac = max(0.0, min(1.0, x / self.width()))
-        self.seek_requested.emit(first_ns + int(frac * total_ns))
+        self.seek_requested.emit((first_ns + int(frac * total_ns)) // 1_000_000)
