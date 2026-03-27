@@ -8,20 +8,20 @@ from PyQt6.QtMultimedia import QAudioOutput, QMediaMetaData, QMediaPlayer
 from PyQt6.QtMultimediaWidgets import QVideoWidget
 from PyQt6.QtWidgets import QInputDialog, QMainWindow, QVBoxLayout, QWidget
 
-from .chapter_io import get_io, MatroskaIO
+from .chapter_io import get_io, MatroskaIO, output_path_for
 from .chapter_model import ChapterList
 from .timeline_widget import TimelineWidget
 
 
 class PlayerWindow(QMainWindow):
-    def __init__(self, media_path: Path, chapters_path: Path, output_path: Path) -> None:
+    def __init__(self) -> None:
         super().__init__()
-        self.setWindowTitle(media_path.name)
+        self.setWindowTitle("Chapter Player")
 
-        self._output_path = output_path
-        self._frame_ns: int = 0  # set after media loads
+        self._output_path: Path | None = None
+        self._frame_ns: int = 0
 
-        self._chapters = ChapterList(get_io(chapters_path).read(chapters_path))
+        self._chapters = ChapterList([])
 
         self._video_widget = QVideoWidget()
         self._timeline = TimelineWidget()
@@ -32,7 +32,6 @@ class PlayerWindow(QMainWindow):
         self._player = QMediaPlayer()
         self._player.setAudioOutput(self._audio_output)
         self._player.setVideoOutput(self._video_widget)
-        self._player.setSource(QUrl.fromLocalFile(str(media_path.resolve())))
         self._player.mediaStatusChanged.connect(self._on_media_status_changed)
 
         central = QWidget()
@@ -48,7 +47,51 @@ class PlayerWindow(QMainWindow):
         self._timer.timeout.connect(self._on_timer)
         self._timer.start()
 
+        self.setAcceptDrops(True)
+        self.statusBar().showMessage("Drop a video file to begin")
+
+    # --- public API ---
+
+    def load_media(self, path: Path) -> None:
+        """Load a media file. Clears any previously loaded chapters."""
+        self._frame_ns = 0
+        self._chapters = ChapterList([])
+        self._output_path = None
+        self._timeline.set_chapters(self._chapters)
+        self._timeline.set_duration(0)
+        self.setWindowTitle(path.name)
+        self._player.setSource(QUrl.fromLocalFile(str(path.resolve())))
         self._player.play()
+        self.statusBar().showMessage("Drop .chapters.xml to add chapters")
+
+    def load_chapters(self, path: Path, output_path: Path) -> None:
+        """Load a chapters file. Media does not need to be loaded first."""
+        self._output_path = output_path
+        self._chapters = ChapterList(get_io(path).read(path))
+        self._timeline.set_chapters(self._chapters)
+        self._update_status()
+
+    # --- drag and drop ---
+
+    def dragEnterEvent(self, event) -> None:  # type: ignore[override]
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+
+    def dropEvent(self, event) -> None:  # type: ignore[override]
+        paths = [
+            Path(url.toLocalFile())
+            for url in event.mimeData().urls()
+            if url.isLocalFile()
+        ]
+        # Process media files first, then chapters files
+        media_paths = [p for p in paths if not p.name.lower().endswith(".chapters.xml")]
+        chapter_paths = [p for p in paths if p.name.lower().endswith(".chapters.xml")]
+        for p in media_paths:
+            self.load_media(p)
+        for p in chapter_paths:
+            out = output_path_for(p)
+            load_from = out if out.exists() else p
+            self.load_chapters(load_from, out)
 
     # --- slots ---
 
@@ -61,6 +104,7 @@ class PlayerWindow(QMainWindow):
             else:
                 logging.warning("No VideoFrameRate metadata — frame-step disabled")
                 self._frame_ns = 0
+            self._timeline.set_duration(self._player.duration() * 1_000_000)
 
     def _on_timer(self) -> None:
         pos_ns = self._player.position() * 1_000_000
@@ -208,6 +252,8 @@ class PlayerWindow(QMainWindow):
             self._update_status()
 
     def _save(self) -> None:
+        if self._output_path is None:
+            return
         try:
             MatroskaIO().write(self._chapters.chapters, self._output_path)
             self.statusBar().showMessage(f"Saved to {self._output_path.name}", 3000)
@@ -215,6 +261,8 @@ class PlayerWindow(QMainWindow):
             self.statusBar().showMessage(f"Save failed: {e}", 5000)
 
     def _update_status(self) -> None:
+        if len(self._chapters) == 0:
+            return  # preserve the drop-hint message in the status bar
         pos_ns = self._pos_ns()
         idx = self._chapters.current_index(pos_ns)
         if idx < 0:
