@@ -87,6 +87,13 @@ class TimelineWidget(QWidget):
         painter.drawPolygon(triangle)
 
     def mousePressEvent(self, event) -> None:  # type: ignore[override]
+        self._seek_from_x(event.position().x())
+
+    def mouseMoveEvent(self, event) -> None:  # type: ignore[override]
+        if event.buttons() & Qt.MouseButton.LeftButton:
+            self._seek_from_x(event.position().x())
+
+    def _seek_from_x(self, x: float) -> None:
         has_chapters = self._chapters is not None and len(self._chapters) > 0
         if has_chapters:
             first_ns = self._chapters[0].start_ns
@@ -99,6 +106,5 @@ class TimelineWidget(QWidget):
             return
         if total_ns == 0:
             return
-        frac = event.position().x() / self.width()
-        seek_ns = first_ns + int(frac * total_ns)
-        self.seek_requested.emit(seek_ns)
+        frac = max(0.0, min(1.0, x / self.width()))
+        self.seek_requested.emit(first_ns + int(frac * total_ns))
