@@ -74,17 +74,15 @@ class PlayerWindow(QMainWindow):
     # --- drag and drop ---
 
     def dragEnterEvent(self, event) -> None:  # type: ignore[override]
-        if event.mimeData().hasUrls() and all(
-            url.isLocalFile() for url in event.mimeData().urls()
-        ):
+        if event.mimeData().hasUrls():
             event.acceptProposedAction()
 
     def dropEvent(self, event) -> None:  # type: ignore[override]
-        paths = [
-            Path(url.toLocalFile())
-            for url in event.mimeData().urls()
-            if url.isLocalFile()
-        ]
+        paths = []
+        for url in event.mimeData().urls():
+            local = url.toLocalFile()
+            if local:
+                paths.append(Path(local))
         # Process media files first, then chapters files
         media_paths = [p for p in paths if not p.name.lower().endswith(".chapters.xml")]
         chapter_paths = [p for p in paths if p.name.lower().endswith(".chapters.xml")]
