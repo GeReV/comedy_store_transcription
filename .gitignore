@@ -6,3 +6,5 @@ whisper.cpp
 node_modules
 static/main.js
 static/data/
+.worktrees/
+.superpowers/
