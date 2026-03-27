@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from PyQt6.QtCore import QTimer, QUrl, Qt
+from PyQt6.QtCore import QEvent, QTimer, QUrl, Qt
 from PyQt6.QtMultimedia import QAudioOutput, QMediaMetaData, QMediaPlayer
 from PyQt6.QtMultimediaWidgets import QVideoWidget
 from PyQt6.QtWidgets import QInputDialog, QMainWindow, QVBoxLayout, QWidget
@@ -48,6 +48,8 @@ class PlayerWindow(QMainWindow):
         self._timer.start()
 
         self.setAcceptDrops(True)
+        self._video_widget.setAcceptDrops(True)
+        self._video_widget.installEventFilter(self)
         self.statusBar().showMessage("Drop a video file to begin")
 
     # --- public API ---
@@ -72,6 +74,15 @@ class PlayerWindow(QMainWindow):
         self._update_status()
 
     # --- drag and drop ---
+
+    def eventFilter(self, obj, event) -> bool:  # type: ignore[override]
+        if event.type() == QEvent.Type.DragEnter:
+            self.dragEnterEvent(event)
+            return True
+        if event.type() == QEvent.Type.Drop:
+            self.dropEvent(event)
+            return True
+        return super().eventFilter(obj, event)
 
     def dragEnterEvent(self, event) -> None:  # type: ignore[override]
         if event.mimeData().hasUrls():
