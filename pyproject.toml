@@ -2,4 +2,10 @@
 name = "comedy-store-transcribe"
 version = "0.1.0"
 requires-python = ">=3.13"
-dependencies = []
+dependencies = ["PyQt6"]
+
+[dependency-groups]
+dev = ["pytest"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
