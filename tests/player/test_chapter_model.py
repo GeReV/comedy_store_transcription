@@ -109,3 +109,28 @@ def test_rename_undo_redo():
     assert cl[0].name == "A"
     cl.redo()
     assert cl[0].name == "X"
+
+
+def test_merge_with_previous():
+    cl = _make_list()
+    cl.merge_with_previous(1)
+    assert len(cl) == 2
+    assert cl[0].start_ns == 0
+    assert cl[0].end_ns == 10_000_000_000  # extends to cover former chapter 1
+    assert cl[0].name == "A"               # keeps preceding chapter name
+    assert cl[1].name == "C"
+
+
+def test_merge_noop_on_first_chapter():
+    cl = _make_list()
+    cl.merge_with_previous(0)
+    assert len(cl) == 3  # unchanged
+
+
+def test_merge_undo():
+    cl = _make_list()
+    cl.merge_with_previous(1)
+    cl.undo()
+    assert len(cl) == 3
+    assert cl[0].end_ns == 5_000_000_000
+    assert cl[1].name == "B"

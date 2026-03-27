@@ -83,6 +83,15 @@ class ChapterList:
     def can_redo(self) -> bool:
         return self._undo_stack.can_redo
 
+    def merge_with_previous(self, index: int) -> None:
+        if index == 0:
+            return
+        before = self._snapshot()
+        self._chapters[index - 1].end_ns = self._chapters[index].end_ns
+        self._chapters.pop(index)
+        after = self._snapshot()
+        self._record(before, after)
+
     def rename(self, index: int, new_name: str) -> None:
         before = self._snapshot()
         self._chapters[index].name = new_name
