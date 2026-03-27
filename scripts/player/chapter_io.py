@@ -7,6 +7,18 @@ from xml.dom.minidom import getDOMImplementation
 from .chapter_model import Chapter
 
 
+_OUTPUT_SUFFIX = ".chapters.edited.xml"
+
+
+def output_path_for(chapters_path: Path) -> Path:
+    """Derive the output (edited) path from a chapters file path."""
+    name = chapters_path.name
+    if name.endswith(".chapters.xml"):
+        base = name[: -len(".chapters.xml")]
+        return chapters_path.parent / (base + _OUTPUT_SUFFIX)
+    return chapters_path.with_suffix(".edited.xml")
+
+
 class ChapterReader(Protocol):
     def read(self, path: Path) -> list[Chapter]: ...
 

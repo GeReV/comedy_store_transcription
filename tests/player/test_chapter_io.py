@@ -93,3 +93,16 @@ def test_write_preserves_edited_names(tmp_path: Path):
     MatroskaIO().write(chapters, out)
     recovered = MatroskaIO().read(out)
     assert recovered[0].name == "My Custom Name"
+
+
+from scripts.player.chapter_io import output_path_for
+
+
+def test_output_path_for_chapters_xml():
+    p = Path("/some/episode.chapters.xml")
+    assert output_path_for(p) == Path("/some/episode.chapters.edited.xml")
+
+
+def test_output_path_for_other_extension():
+    p = Path("/some/episode.xml")
+    assert output_path_for(p) == Path("/some/episode.edited.xml")
