@@ -20,6 +20,8 @@ class PlayerWindow(QMainWindow):
 
         self._output_path: Path | None = None
         self._frame_ns: int = 0
+        self._base_title = "Chapter Player"
+        self._dirty = False
 
         self._chapters = ChapterList([])
 
@@ -33,6 +35,7 @@ class PlayerWindow(QMainWindow):
         self._player.setAudioOutput(self._audio_output)
         self._player.setVideoOutput(self._video_widget)
         self._player.mediaStatusChanged.connect(self._on_media_status_changed)
+        self._player.durationChanged.connect(self._on_duration_changed)
 
         central = QWidget()
         layout = QVBoxLayout(central)
@@ -59,9 +62,11 @@ class PlayerWindow(QMainWindow):
         self._frame_ns = 0
         self._chapters = ChapterList([])
         self._output_path = None
+        self._base_title = path.name
+        self._dirty = False
+        self._refresh_title()
         self._timeline.set_chapters(self._chapters)
         self._timeline.set_duration(0)
-        self.setWindowTitle(path.name)
         self._player.setSource(QUrl.fromLocalFile(str(path.resolve())))
         self._player.play()
         self.statusBar().showMessage("Drop .chapters.xml to add chapters")
@@ -69,6 +74,8 @@ class PlayerWindow(QMainWindow):
     def load_chapters(self, path: Path, output_path: Path) -> None:
         """Load a chapters file. Media does not need to be loaded first."""
         self._output_path = output_path
+        self._dirty = False
+        self._refresh_title()
         self._chapters = ChapterList(get_io(path).read(path))
         self._timeline.set_chapters(self._chapters)
         self._update_status()
@@ -115,7 +122,9 @@ class PlayerWindow(QMainWindow):
             else:
                 logging.warning("No VideoFrameRate metadata — frame-step disabled")
                 self._frame_ns = 0
-            self._timeline.set_duration(self._player.duration() * 1_000_000)
+
+    def _on_duration_changed(self, duration_ms: int) -> None:
+        self._timeline.set_duration(duration_ms * 1_000_000)
 
     def _on_timer(self) -> None:
         pos_ns = self._player.position() * 1_000_000
@@ -153,6 +162,12 @@ class PlayerWindow(QMainWindow):
             self._seek_ms(-15_000)
         elif key == Key.Key_Right and mods == Mod.AltModifier:
             self._seek_ms(15_000)
+
+        # Navigate to start / end
+        elif key == Key.Key_Home:
+            self._player.setPosition(0)
+        elif key == Key.Key_End:
+            self._player.setPosition(self._player.duration())
 
         # Chapter navigation
         elif key == Key.Key_BracketLeft:
@@ -197,14 +212,24 @@ class PlayerWindow(QMainWindow):
         # Undo / redo
         elif key == Key.Key_Z and mods == Mod.ControlModifier:
             if self._chapters.undo():
+                self._mark_dirty()
                 self._timeline.set_chapters(self._chapters)
                 self._update_status()
         elif key == Key.Key_Z and mods == (Mod.ControlModifier | Mod.ShiftModifier):
             if self._chapters.redo():
+                self._mark_dirty()
                 self._timeline.set_chapters(self._chapters)
                 self._update_status()
 
     # --- private helpers ---
+
+    def _refresh_title(self) -> None:
+        self.setWindowTitle(self._base_title + (" *" if self._dirty else ""))
+
+    def _mark_dirty(self) -> None:
+        if not self._dirty:
+            self._dirty = True
+            self._refresh_title()
 
     def _pos_ns(self) -> int:
         return self._player.position() * 1_000_000
@@ -229,6 +254,7 @@ class PlayerWindow(QMainWindow):
         if idx <= 0:
             return
         self._chapters.move_boundary(idx, delta_ns)
+        self._mark_dirty()
         self._timeline.set_chapters(self._chapters)
         self._update_status()
 
@@ -237,6 +263,7 @@ class PlayerWindow(QMainWindow):
         if idx <= 0:
             return
         self._chapters.merge_with_previous(idx)
+        self._mark_dirty()
         self._timeline.set_chapters(self._chapters)
         self._update_status()
 
@@ -246,6 +273,7 @@ class PlayerWindow(QMainWindow):
         if idx < 0:
             return
         self._chapters.split(idx, pos)
+        self._mark_dirty()
         self._timeline.set_chapters(self._chapters)
         self._update_status()
 
@@ -259,6 +287,7 @@ class PlayerWindow(QMainWindow):
         )
         if ok and new_name != current_name:
             self._chapters.rename(idx, new_name)
+            self._mark_dirty()
             self._timeline.set_chapters(self._chapters)
             self._update_status()
 
@@ -267,6 +296,8 @@ class PlayerWindow(QMainWindow):
             return
         try:
             MatroskaIO().write(self._chapters.chapters, self._output_path)
+            self._dirty = False
+            self._refresh_title()
             self.statusBar().showMessage(f"Saved to {self._output_path.name}", 3000)
         except OSError as e:
             self.statusBar().showMessage(f"Save failed: {e}", 5000)
@@ -281,8 +312,7 @@ class PlayerWindow(QMainWindow):
         ch = self._chapters[idx]
         total_s = pos_ns // 1_000_000_000
         h, m, s = total_s // 3600, (total_s % 3600) // 60, total_s % 60
-        undo_hint = " [unsaved]" if self._chapters.can_undo else ""
         self.statusBar().showMessage(
             f"Chapter {idx + 1}/{len(self._chapters)}: {ch.name}  |  "
-            f"{h:02d}:{m:02d}:{s:02d}{undo_hint}"
+            f"{h:02d}:{m:02d}:{s:02d}"
         )

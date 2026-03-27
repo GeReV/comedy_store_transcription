@@ -7,7 +7,7 @@ from xml.dom.minidom import getDOMImplementation
 from .chapter_model import Chapter
 
 
-_OUTPUT_SUFFIX = ".chapters.edited.xml"
+_OUTPUT_SUFFIX = ".edited.chapters.xml"
 
 
 def output_path_for(chapters_path: Path) -> Path:

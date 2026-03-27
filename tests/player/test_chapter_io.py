@@ -100,7 +100,7 @@ from scripts.player.chapter_io import output_path_for
 
 def test_output_path_for_chapters_xml():
     p = Path("/some/episode.chapters.xml")
-    assert output_path_for(p) == Path("/some/episode.chapters.edited.xml")
+    assert output_path_for(p) == Path("/some/episode.edited.chapters.xml")
 
 
 def test_output_path_for_other_extension():
