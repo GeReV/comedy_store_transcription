@@ -134,3 +134,32 @@ def test_merge_undo():
     assert len(cl) == 3
     assert cl[0].end_ns == 5_000_000_000
     assert cl[1].name == "B"
+
+
+def test_split():
+    cl = _make_list()
+    cl.split(0, 2_000_000_000)
+    assert len(cl) == 4
+    assert cl[0].start_ns == 0
+    assert cl[0].end_ns == 2_000_000_000
+    assert cl[0].name == "A"
+    assert cl[1].start_ns == 2_000_000_000
+    assert cl[1].end_ns == 5_000_000_000
+    assert cl[1].name == "A"
+
+
+def test_split_noop_at_boundary():
+    cl = _make_list()
+    cl.split(0, 0)               # at start — not strictly inside
+    assert len(cl) == 3
+    cl.split(0, 5_000_000_000)   # at end — not strictly inside
+    assert len(cl) == 3
+
+
+def test_split_undo():
+    cl = _make_list()
+    cl.split(1, 7_000_000_000)
+    assert len(cl) == 4
+    cl.undo()
+    assert len(cl) == 3
+    assert cl[1].name == "B"
