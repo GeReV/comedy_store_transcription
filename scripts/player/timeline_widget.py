@@ -36,15 +36,15 @@ class TimelineWidget(QWidget):
         if self._chapters is None or len(self._chapters) == 0:
             return
 
-        painter = QPainter(self)
-        w = self.width()
-        h = self.height()
-
         first_ns = self._chapters[0].start_ns
         last_ns = self._chapters[len(self._chapters) - 1].end_ns
         total_ns = last_ns - first_ns
         if total_ns == 0:
             return
+
+        painter = QPainter(self)
+        w = self.width()
+        h = self.height()
 
         def to_x(ns: int) -> int:
             return int((ns - first_ns) / total_ns * w)

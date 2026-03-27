@@ -208,8 +208,11 @@ class PlayerWindow(QMainWindow):
             self._update_status()
 
     def _save(self) -> None:
-        MatroskaIO().write(self._chapters.chapters, self._output_path)
-        self.statusBar().showMessage(f"Saved → {self._output_path.name}", 3000)
+        try:
+            MatroskaIO().write(self._chapters.chapters, self._output_path)
+            self.statusBar().showMessage(f"Saved to {self._output_path.name}", 3000)
+        except OSError as e:
+            self.statusBar().showMessage(f"Save failed: {e}", 5000)
 
     def _update_status(self) -> None:
         pos_ns = self._pos_ns()
