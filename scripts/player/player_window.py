@@ -74,7 +74,9 @@ class PlayerWindow(QMainWindow):
     # --- drag and drop ---
 
     def dragEnterEvent(self, event) -> None:  # type: ignore[override]
-        if event.mimeData().hasUrls():
+        if event.mimeData().hasUrls() and all(
+            url.isLocalFile() for url in event.mimeData().urls()
+        ):
             event.acceptProposedAction()
 
     def dropEvent(self, event) -> None:  # type: ignore[override]
