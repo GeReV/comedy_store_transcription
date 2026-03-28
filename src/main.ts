@@ -261,11 +261,13 @@ queryEl.addEventListener("input", () => {
     syncSidebar();
 
     if (currentRoute.kind === "episode") {
-        // Filter transcript in-place without navigating away
         if (episodeViewState) {
             const {listEl, lineEls, lines, chapterBlocks} = episodeViewState;
             measure("filter:episode", () => applyQueryFilter(listEl, lineEls, lines, q, chapterBlocks));
         }
+        const newHash = `#${buildEpisodeHash(currentRoute.id, undefined, q.trim().length >= MIN_QUERY_LENGTH ? q : undefined)}`;
+        history.replaceState({...history.state}, "", newHash);
+        currentRoute = {...currentRoute, query: q.trim().length >= MIN_QUERY_LENGTH ? q : undefined};
         return;
     }
 
@@ -294,6 +296,8 @@ queryEl.addEventListener("input", () => {
         }
 
         currentRoute = {kind: "welcome"};
+    } else {
+        setStatus(`הקלד לפחות ${MIN_QUERY_LENGTH} תווים`);
     }
 });
 
