@@ -38,7 +38,7 @@ jobs:
           python-version: "3.13"
 
       - name: Install Node dependencies
-        run: npm ci
+        run: npm ci --include dev
 
       - name: Build data
         run: npm run build:data
