@@ -25,24 +25,27 @@ After processing, outputs are moved/copied to `./files/` for distribution.
 
 Total: ~104 episode directories + `Comedy_Store_2020` (5 episodes) = ~109 episodes.
 
-## Website (`docs/`)
+## Website (`static/`)
 
-A static GitHub Pages site lives in `docs/`. See `PLAN.md` for the full design. Key facts:
+A static GitHub Pages site served from `static/`. Key facts:
 - Vanilla TypeScript compiled to JS, plain CSS, single `index.html`
 - RTL Hebrew UI with light/dark theme
 - Main feature: brute-force text search across all episode subtitles
-- All episode data (metadata + subtitle lines + chapters) in `static/data/subtitles.json` (and `.gz`)
-- Three views: episode list, search results (with context), episode view — hash-routed
+- All episode data (metadata + subtitle lines + chapters) in a single `static/data/subtitles.json` (and `.gz`) — no separate per-episode files
+- Views: episode list, search results (with context), episode view (with chapter blocks), chapter view — hash-routed
+- URL scheme: `#` welcome, `#search/{q}` results, `#episode/{id}` episode, `#episode/{id}?q={q}` filtered episode, `#episode/{id}/ch-{N}` chapter
 - CSS Highlights API for match highlighting (Chrome 105+, Firefox 117+, Safari 17.2+)
 - GitHub Actions deploys `static/` to gh-pages
 
 ### Website build commands
 ```bash
-npm install                 # install esbuild
+npm install                 # install deps (esbuild, vitest, playwright)
 npm run build:data          # python scripts/build_data.py → writes static/data/
 npm run build:ts            # esbuild src/main.ts → static/main.js
 npm run build               # both of the above
 npm run dev                 # watch + local server on static/
+npm run test:unit           # vitest unit tests (parseHash, buildEpisodeHash, sidebar)
+npm run test:e2e            # playwright end-to-end navigation tests
 ```
 
 ## Prerequisites

@@ -60,9 +60,11 @@ PowerShell and Python scripts for the transcription pipeline:
 Website source. TypeScript compiled with esbuild, plain CSS, single `index.html`. Deployed to GitHub Pages via GitHub Actions.
 
 ```bash
-npm install          # install build deps
-npm run build        # build data + compile TypeScript
-npm run dev          # watch mode + local server on static/
+npm install           # install build deps
+npm run build         # build data + compile TypeScript
+npm run dev           # watch mode + local server on static/
+npm run test:unit     # unit tests (routing, sidebar)
+npm run test:e2e      # end-to-end navigation tests (requires Chromium)
 ```
 
 ## License

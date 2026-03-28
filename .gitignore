@@ -8,3 +8,6 @@ static/main.js
 static/data/
 .worktrees/
 .superpowers/
+.claude/
+.playwright-browsers/
+test-results/
