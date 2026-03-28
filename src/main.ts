@@ -1,11 +1,14 @@
 import type {EpisodeIndex, EpisodeLines, EpisodeMetadata} from "./types.js";
-import {loadIndex, loadAll, loadEpisode, getCachedSubtitles} from "./loader.js";
+import {parseHash, buildEpisodeHash} from "./router.js";
+import type {Route} from "./router.js";
+import {loadBundle, loadEpisode, getCachedSubtitles, getEpisodeChapters} from "./loader.js";
 import {searchEpisodes, MIN_QUERY_LENGTH} from "./search.js";
 import {applyHighlights, clearHighlights} from "./highlight.js";
 import {renderSidebar, updateSidebarState} from "./sidebar.js";
 import {renderWelcome} from "./views/list.js";
 import {renderResults} from "./views/results.js";
 import {renderEpisode, applyQueryFilter} from "./views/episode.js";
+import type {ChapterBlockData} from "./views/episode.js";
 import {ensure} from "./utils.js";
 import {measure} from "./perf.js";
 
@@ -53,11 +56,6 @@ function makeSpan(text: string): HTMLSpanElement {
 }
 
 // ── App state ──────────────────────────────────────────────────────────
-type Route =
-    | { kind: "welcome" }
-    | { kind: "results"; query: string }
-    | { kind: "episode"; id: string; lineIndex?: number };
-
 let episodeIndex: EpisodeIndex = [];
 let currentRoute: Route = {kind: "welcome"};
 let isPopState = false;
@@ -66,6 +64,7 @@ let episodeViewState: {
     lines: EpisodeLines;
     lineEls: HTMLElement[];
     listEl: HTMLElement;
+    chapterBlocks?: ChapterBlockData[];
 } | null = null;
 
 // ── Theme ──────────────────────────────────────────────────────────────
@@ -112,29 +111,6 @@ function navigate(hash: string) {
     window.location.hash = hash;
 }
 
-function parseHash(hash: string): Route {
-    const raw = hash.startsWith("#") ? hash.slice(1) : hash;
-    if (!raw) return {kind: "welcome"};
-
-    if (raw.startsWith("search/")) {
-        const query = decodeURIComponent(raw.slice("search/".length));
-        return {kind: "results", query};
-    }
-
-    if (raw.startsWith("episode/")) {
-        const rest = raw.slice("episode/".length);
-        const slashIdx = rest.lastIndexOf("/");
-        if (slashIdx !== -1) {
-            const id = decodeURIComponent(rest.slice(0, slashIdx));
-            const lineIndex = parseInt(rest.slice(slashIdx + 1), 10);
-            return {kind: "episode", id, lineIndex: isNaN(lineIndex) ? undefined : lineIndex};
-        }
-        return {kind: "episode", id: decodeURIComponent(rest)};
-    }
-
-    return {kind: "welcome"};
-}
-
 // ── Breadcrumb ─────────────────────────────────────────────────────────
 function setBreadcrumb(route: Route, prevQuery?: string) {
     if (route.kind === "welcome") {
@@ -159,17 +135,30 @@ function setBreadcrumb(route: Route, prevQuery?: string) {
         } else {
             breadcrumbEl.replaceChildren(bcHomeLink, makeSep(), makeSpan(title));
         }
+        return;
+    }
+
+    if (route.kind === "chapter") {
+        const ep = episodeIndex.find((e) => e.id === route.episodeId);
+        const epTitle = ep?.title ?? route.episodeId;
+        const chapters = getEpisodeChapters(route.episodeId);
+        const ch = chapters?.[route.chapterIdx - 1];
+        const chLabel = ch?.name || `סצינה ${route.chapterIdx}`;
+
+        const epLink = document.createElement("a");
+        epLink.href = `#episode/${encodeURIComponent(route.episodeId)}`;
+        epLink.textContent = epTitle;
+        breadcrumbEl.replaceChildren(bcHomeLink, makeSep(), epLink, makeSep(), makeSpan(chLabel));
     }
 }
 
 // ── Sidebar helper ─────────────────────────────────────────────────────
 function syncSidebar() {
-    updateSidebarState(
-        sidebarEl,
-        getCachedSubtitles(),
-        queryEl.value,
-        currentRoute.kind === "episode" ? currentRoute.id : undefined,
-    );
+    const activeId =
+        currentRoute.kind === "episode" ? currentRoute.id :
+        currentRoute.kind === "chapter" ? currentRoute.episodeId :
+        undefined;
+    updateSidebarState(sidebarEl, getCachedSubtitles(), queryEl.value, activeId);
 }
 
 // ── Router ─────────────────────────────────────────────────────────────
@@ -206,7 +195,7 @@ async function handleRoute(route: Route, prevQuery?: string, savedScroll = 0) {
     }
 
     if (route.kind === "episode") {
-        queryEl.value = route.lineIndex !== undefined ? "" : (prevQuery ?? "");
+        queryEl.value = prevQuery ?? "";
         setBreadcrumb(route, prevQuery);
 
         const ep = episodeIndex.find((e) => e.id === route.id);
@@ -217,8 +206,11 @@ async function handleRoute(route: Route, prevQuery?: string, savedScroll = 0) {
 
         mainPaneEl.replaceChildren(loadingEpisodeMsg);
         const lines = await loadEpisode(ep);
+        const chapters = getEpisodeChapters(ep.id);
 
-        measure("render:episode", () => renderEpisode(mainPaneEl, ep, lines, queryEl.value, route.lineIndex));
+        const renderResult = measure("render:episode", () =>
+            renderEpisode(mainPaneEl, ep, lines, queryEl.value, route.lineIndex, chapters),
+        );
 
         if (route.lineIndex === undefined) {
             requestAnimationFrame(() => {
@@ -226,15 +218,65 @@ async function handleRoute(route: Route, prevQuery?: string, savedScroll = 0) {
             });
         }
 
-        const listEl = mainPaneEl.querySelector<HTMLElement>(".transcript-list");
-        if (listEl) {
-            episodeViewState = {
-                episode: ep,
-                lines,
-                lineEls: Array.from(listEl.querySelectorAll<HTMLElement>(".transcript-line")),
-                listEl,
-            };
+        episodeViewState = {
+            episode: ep,
+            lines,
+            lineEls: renderResult.lineEls,
+            listEl: renderResult.listEl,
+            chapterBlocks: renderResult.chapterBlocks,
+        };
+
+        // Clicking the title while filtered won't trigger hashchange (same hash),
+        // so clear the filter in-place instead.
+        const titleLinkEl = mainPaneEl.querySelector<HTMLAnchorElement>(".episode-header h2 a");
+
+        if (titleLinkEl) {
+            titleLinkEl.addEventListener("click", (e) => {
+                if (queryEl.value) {
+                    e.preventDefault();
+                    queryEl.value = "";
+                    clearBtnEl.hidden = true;
+                    queryEl.dispatchEvent(new Event("input"));
+                }
+            });
         }
+
+        return;
+    }
+
+    if (route.kind === "chapter") {
+        queryEl.value = "";
+        setBreadcrumb(route);
+
+        const ep = episodeIndex.find((e) => e.id === route.episodeId);
+        if (!ep) {
+            mainPaneEl.replaceChildren(episodeNotFoundMsg);
+            return;
+        }
+
+        mainPaneEl.replaceChildren(loadingEpisodeMsg);
+        const lines = await loadEpisode(ep);
+        const chapters = getEpisodeChapters(ep.id);
+
+        const renderResult = measure("render:episode", () =>
+            renderEpisode(mainPaneEl, ep, lines, "", undefined, chapters),
+        );
+
+        if (renderResult.chapterBlocks) {
+            for (const block of renderResult.chapterBlocks) {
+                block.el.hidden = block.chapterIdx !== route.chapterIdx;
+            }
+        }
+
+        mainPaneEl.scrollTop = 0;
+
+        episodeViewState = {
+            episode: ep,
+            lines,
+            lineEls: renderResult.lineEls,
+            listEl: renderResult.listEl,
+            chapterBlocks: renderResult.chapterBlocks,
+        };
     }
 }
 
@@ -249,8 +291,8 @@ queryEl.addEventListener("input", () => {
     if (currentRoute.kind === "episode") {
         // Filter transcript in-place without navigating away
         if (episodeViewState) {
-            const {listEl, lineEls, lines} = episodeViewState;
-            measure("filter:episode", () => applyQueryFilter(listEl, lineEls, lines, q));
+            const {listEl, lineEls, lines, chapterBlocks} = episodeViewState;
+            measure("filter:episode", () => applyQueryFilter(listEl, lineEls, lines, q, chapterBlocks));
         }
         return;
     }
@@ -261,21 +303,29 @@ queryEl.addEventListener("input", () => {
         setStatus(`${results.reduce((s, r) => s + r.totalMatches, 0)} תוצאות`);
         measure("render:results", () => renderResults(mainPaneEl, results, subs, q));
         applyHighlights(q, mainPaneEl);
+
+        const encoded = `#search/${encodeURIComponent(q)}`;
+
+        if (currentRoute.kind !== "results") {
+            history.pushState(null, "", encoded);
+        } else {
+            history.replaceState({...history.state}, "", encoded);
+        }
+
         currentRoute = {kind: "results", query: q};
     } else if (q.trim().length === 0) {
         setStatus("");
         renderWelcome(mainPaneEl);
+
+        if (currentRoute.kind === "results") {
+            history.replaceState(null, "", "#");
+        }
+
         currentRoute = {kind: "welcome"};
     }
 });
 
 queryEl.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") {
-        const q = queryEl.value.trim();
-        if (q.length >= MIN_QUERY_LENGTH) {
-            navigate(`search/${encodeURIComponent(q)}`);
-        }
-    }
     if (e.key === "Escape") {
         queryEl.value = "";
         queryEl.dispatchEvent(new Event("input"));
@@ -301,7 +351,10 @@ async function init() {
     setStatus("טוען...");
 
     try {
-        episodeIndex = await loadIndex();
+        episodeIndex = await loadBundle((loaded, total) => {
+            const pct = total > 0 ? ` ${Math.round(loaded / total * 100)}%` : "";
+            setStatus(`טוען...${pct}`);
+        });
     } catch {
         mainPaneEl.replaceChildren(loadErrorMsg);
         return;
@@ -311,16 +364,6 @@ async function init() {
 
     const initialRoute = parseHash(window.location.hash);
     await handleRoute(initialRoute);
-
-    setStatus("");
-
-    // Background-load all subtitle files as a single bundle
-    await loadAll(episodeIndex, (loaded, total) => {
-        if (currentRoute.kind !== "episode") {
-            const pct = total > 0 ? ` ${Math.round(loaded / total * 100)}%` : "";
-            setStatus(`טוען תמלילים...${pct}`);
-        }
-    })
 
     setStatus("");
 
@@ -361,8 +404,9 @@ window.addEventListener("hashchange", () => {
     const route = parseHash(window.location.hash);
     const prevQuery =
         currentRoute.kind === "results" ? currentRoute.query :
-            currentRoute.kind === "episode" && queryEl.value ? queryEl.value :
-                undefined;
+        currentRoute.kind === "episode" && queryEl.value &&
+        !(route.kind === "episode" && route.id === currentRoute.id) ? queryEl.value :
+        undefined;
     void handleRoute(route, prevQuery, savedScroll);
 });
 
