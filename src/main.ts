@@ -96,18 +96,7 @@ mainPaneEl.addEventListener("scroll", () => {
 
 // ── Navigation ─────────────────────────────────────────────────────────
 function navigate(hash: string) {
-    // Save current scroll before leaving
     history.replaceState({...history.state, scroll: mainPaneEl.scrollTop}, "");
-    // When jumping to an episode from in-memory search results (the user hasn't pressed
-    // Enter, so #search/... isn't in the browser history yet), silently insert it
-    // first so the native Back button returns to the results rather than welcome.
-    if (
-        currentRoute.kind === "results" &&
-        hash.startsWith("episode/") &&
-        !window.location.hash.startsWith("#search/")
-    ) {
-        history.pushState(null, "", `#search/${encodeURIComponent(currentRoute.query)}`);
-    }
     window.location.hash = hash;
 }
 
@@ -162,11 +151,12 @@ function syncSidebar() {
 }
 
 // ── Router ─────────────────────────────────────────────────────────────
-async function handleRoute(route: Route, prevQuery?: string, savedScroll = 0) {
+async function handleRoute(route: Route, savedScroll = 0) {
     currentRoute = route;
     episodeViewState = null;
     clearHighlights();
-    setBreadcrumb(route, prevQuery);
+    const crumbQuery = route.kind === "episode" ? route.query : undefined;
+    setBreadcrumb(route, crumbQuery);
     syncSidebar();
 
     if (route.kind === "welcome") {
@@ -178,7 +168,6 @@ async function handleRoute(route: Route, prevQuery?: string, savedScroll = 0) {
 
     if (route.kind === "results") {
         queryEl.value = route.query;
-        setBreadcrumb(route);
         const subs = getCachedSubtitles();
 
         if (subs.size < episodeIndex.length) {
@@ -195,8 +184,7 @@ async function handleRoute(route: Route, prevQuery?: string, savedScroll = 0) {
     }
 
     if (route.kind === "episode") {
-        queryEl.value = prevQuery ?? "";
-        setBreadcrumb(route, prevQuery);
+        queryEl.value = route.query ?? "";
 
         const ep = episodeIndex.find((e) => e.id === route.id);
         if (!ep) {
@@ -226,27 +214,11 @@ async function handleRoute(route: Route, prevQuery?: string, savedScroll = 0) {
             chapterBlocks: renderResult.chapterBlocks,
         };
 
-        // Clicking the title while filtered won't trigger hashchange (same hash),
-        // so clear the filter in-place instead.
-        const titleLinkEl = mainPaneEl.querySelector<HTMLAnchorElement>(".episode-header h2 a");
-
-        if (titleLinkEl) {
-            titleLinkEl.addEventListener("click", (e) => {
-                if (queryEl.value) {
-                    e.preventDefault();
-                    queryEl.value = "";
-                    clearBtnEl.hidden = true;
-                    queryEl.dispatchEvent(new Event("input"));
-                }
-            });
-        }
-
         return;
     }
 
     if (route.kind === "chapter") {
         queryEl.value = "";
-        setBreadcrumb(route);
 
         const ep = episodeIndex.find((e) => e.id === route.episodeId);
         if (!ep) {
@@ -401,13 +373,7 @@ window.addEventListener("popstate", () => {
 window.addEventListener("hashchange", () => {
     const savedScroll = isPopState ? (history.state?.scroll ?? 0) : 0;
     isPopState = false;
-    const route = parseHash(window.location.hash);
-    const prevQuery =
-        currentRoute.kind === "results" ? currentRoute.query :
-        currentRoute.kind === "episode" && queryEl.value &&
-        !(route.kind === "episode" && route.id === currentRoute.id) ? queryEl.value :
-        undefined;
-    void handleRoute(route, prevQuery, savedScroll);
+    void handleRoute(parseHash(window.location.hash), savedScroll);
 });
 
 document.addEventListener("DOMContentLoaded", init);
