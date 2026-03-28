@@ -31,7 +31,7 @@ A static GitHub Pages site lives in `docs/`. See `PLAN.md` for the full design. 
 - Vanilla TypeScript compiled to JS, plain CSS, single `index.html`
 - RTL Hebrew UI with light/dark theme
 - Main feature: brute-force text search across all episode subtitles
-- Episode metadata in `static/data/episodes.json`; per-episode subtitle lines in `static/data/subtitles/<id>.json`
+- All episode data (metadata + subtitle lines + chapters) in `static/data/subtitles.json` (and `.gz`)
 - Three views: episode list, search results (with context), episode view — hash-routed
 - CSS Highlights API for match highlighting (Chrome 105+, Firefox 117+, Safari 17.2+)
 - GitHub Actions deploys `static/` to gh-pages
