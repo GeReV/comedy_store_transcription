@@ -53,6 +53,7 @@ npm run dev                 # watch + local server on static/
   - `.\whisper.cpp\models\ggml-silero-v6.2.0.bin` (VAD)
 - ffmpeg available on PATH
 - Python >= 3.13 (managed via `uv`)
+- PyQt6 (for the chapter editor; installed via `uv`)
 
 ## Commands
 
@@ -80,6 +81,42 @@ python .\chapters.py path\to\episode.scenes
 python .\chapters.py path\to\episode.scenes -o output.xml
 ```
 
+### Edit chapters with the player
+
+The chapter editor is a PyQt6 GUI for reviewing auto-generated chapters and refining them into named scenes/skits.
+
+```bash
+# Launch with no arguments (then drag-and-drop files)
+./player.sh
+
+# Launch with a video and its chapters pre-loaded
+./player.sh path/to/episode.mkv path/to/episode.chapters.xml
+```
+
+**Workflow:** drop a video file onto the window, then drop its `.chapters.xml`. The auto-detected scene cuts appear as chapters on the timeline. Use the editor to merge spurious cuts, split at real scene boundaries, and rename chapters to describe the scene or skit. Save with `Ctrl+S`.
+
+Edits are written to `<basename>.edited.chapters.xml` (alongside the original), leaving the source file untouched. Re-opening the same `.chapters.xml` automatically loads the `.edited.chapters.xml` if it exists.
+
+**Keyboard shortcuts** (also shown in the UI):
+
+| Key | Action |
+|-----|--------|
+| `Space` | Play / Pause |
+| `[` / `]` | Jump to previous / next chapter |
+| `S` | Split current chapter at playhead |
+| `Del` | Merge current chapter with previous |
+| `R` | Rename current chapter |
+| `Ctrl+S` | Save to `.edited.chapters.xml` |
+| `Ctrl+Z` / `Ctrl+Shift+Z` | Undo / Redo |
+| `←` / `→` | Seek ±5s |
+| `Alt+←` / `Alt+→` | Seek ±15s |
+| `Ctrl+←` / `Ctrl+→` | Seek ±1 min |
+| `Home` / `End` | Jump to start / end |
+| `,` / `.` | Step one frame back / forward |
+| `Shift+,` / `Shift+.` | Nudge chapter boundary ±1 frame |
+| `Shift+←` / `Shift+→` | Nudge chapter boundary ±1s |
+| `Ctrl+Shift+←` / `Ctrl+Shift+→` | Nudge chapter boundary ±5s |
+
 ### Global search and replace across transcriptions
 ```powershell
 # Replaces text in all .srt and .json files under .\files\
@@ -103,3 +140,6 @@ Key whisper flags: `-l he` (Hebrew), `--vad` (voice activity detection with sile
 
 **Stage 2 — Chapter generation (`chapters.py`):**
 Parses the `.scenes` log using regex to extract scene timestamps and video duration, then emits a Matroska-compatible chapter XML. Chapters use language `heb` and title `N/A` (chapters are positional markers, not named scenes). Time values are in nanoseconds as required by the Matroska spec.
+
+**Stage 3 — Chapter editing (`scripts/player/`):**
+A PyQt6 GUI (`player.sh`) for manually reviewing and refining the auto-generated chapters. The editor shows the video alongside an interactive timeline with chapter markers. The operator watches the episode, merges false cuts, splits at real scene/skit boundaries, and renames chapters descriptively. Edits are saved to `.edited.chapters.xml` without touching the original. The `chapter_model.py` module holds the in-memory chapter list with full undo/redo history; `chapter_io.py` handles Matroska XML read/write; `timeline_widget.py` renders the chapter timeline and emits seek requests.
