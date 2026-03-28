@@ -168,9 +168,9 @@ async function handleRoute(route: Route, savedScroll = 0) {
     const crumbQuery = route.kind === "episode" ? route.query : undefined;
     setBreadcrumb(route, crumbQuery);
     syncSidebar();
+    setStatus("");
 
     if (route.kind === "welcome") {
-        setStatus("");
         renderWelcome(mainPaneEl);
         mainPaneEl.scrollTop = savedScroll;
         return;

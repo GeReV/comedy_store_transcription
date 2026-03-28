@@ -299,3 +299,28 @@ test("back from results to welcome → status bar is cleared", async ({ page }) 
     await page.goBack();
     await expect(page.locator("#search-status")).toHaveText("");
 });
+
+// ---------------------------------------------------------------------------
+// Test 20: Navigate from results to episode → status bar is cleared
+// ---------------------------------------------------------------------------
+test("results → click episode title → status bar is cleared", async ({ page }) => {
+    await page.goto("/");
+    await page.fill("#query", "שלום");
+    await expect(page.locator("#search-status")).toContainText("תוצאות");
+    await page.locator(".results-episode-title").first().click();
+    await page.waitForSelector(".episode-header");
+    await expect(page.locator("#search-status")).toHaveText("");
+});
+
+// ---------------------------------------------------------------------------
+// Test 21: Navigate directly to chapter URL from results state → status bar is cleared
+// ---------------------------------------------------------------------------
+test("results state → direct navigate to chapter URL → status bar is cleared", async ({ page }) => {
+    await page.goto("/");
+    await page.fill("#query", "שלום");
+    await expect(page.locator("#search-status")).toContainText("תוצאות");
+    // Navigate to a chapter URL directly (simulates back/forward or link click without clearing input)
+    await page.evaluate(() => { window.location.hash = "#episode/ep2/ch-1"; });
+    await page.waitForURL(/.*#episode\/ep2\/ch-1$/);
+    await expect(page.locator("#search-status")).toHaveText("");
+});
