@@ -1,6 +1,7 @@
 import type { EpisodeSearchResult, EpisodeLines, DisplayEntry } from "../types.js";
 import { MAX_ENTRIES_PER_GROUP, formatTime } from "../search.js";
 import { applyHighlights } from "../highlight.js";
+import { buildEpisodeHash } from "../router.js";
 
 const noResultsEl = document.createElement("p");
 noResultsEl.className = "state-message";
@@ -38,7 +39,7 @@ export function renderResults(
 
     const titleEl = document.createElement("a");
     titleEl.className = "results-episode-title";
-    titleEl.href = `#episode/${episode.id}`;
+    titleEl.href = `#${buildEpisodeHash(episode.id, undefined, query)}`;
     titleEl.textContent = episode.title;
 
     const countEl = document.createElement("span");
@@ -53,7 +54,7 @@ export function renderResults(
     const overflow = entries.slice(MAX_ENTRIES_PER_GROUP);
 
     for (const entry of visible) {
-      section.appendChild(renderEntry(entry, lines, episode.id));
+      section.appendChild(renderEntry(entry, lines, episode.id, query));
     }
 
     if (overflow.length > 0) {
@@ -63,7 +64,7 @@ export function renderResults(
       btn.addEventListener("click", () => {
         const frag = document.createDocumentFragment();
         for (const entry of overflow) {
-          frag.appendChild(renderEntry(entry, lines, episode.id));
+          frag.appendChild(renderEntry(entry, lines, episode.id, query));
         }
         btn.replaceWith(frag);
         applyHighlights(query, container);
@@ -81,6 +82,7 @@ function renderEntry(
   entry: DisplayEntry,
   lines: EpisodeLines,
   episodeId: string,
+  query: string,
 ): HTMLElement {
   const el = document.createElement("div");
   el.className = "result-entry";
@@ -92,7 +94,7 @@ function renderEntry(
     const isMatch = entry.matchIndices.has(i);
     const row = document.createElement("a");
     row.className = `result-line ${isMatch ? "match" : "context"}`;
-    row.href = `#episode/${episodeId}/${i}`;
+    row.href = `#${buildEpisodeHash(episodeId, i, query)}`;
 
     const ts = document.createElement("span");
     ts.className = "ts";
