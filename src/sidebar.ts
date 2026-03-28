@@ -37,6 +37,9 @@ export function updateSidebarState(
   const q = query.trim().toLowerCase();
   const filtering = q.length >= MIN_QUERY_LENGTH && subtitles.size > 0;
 
+  const listEl = container.querySelector<HTMLElement>(".sidebar-list");
+  listEl?.classList.toggle("filtered", filtering);
+
   let currentEl: HTMLElement | null = null;
 
   for (const li of container.querySelectorAll<HTMLElement>(".sidebar-item")) {

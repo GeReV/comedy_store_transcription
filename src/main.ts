@@ -155,19 +155,28 @@ async function handleRoute(route: Route, savedScroll = 0) {
     currentRoute = route;
     episodeViewState = null;
     clearHighlights();
+
+    // Set query input before syncSidebar so the sidebar reflects this route's query,
+    // not whatever the previous route left in the input.
+    const newQuery =
+        route.kind === "results" ? route.query :
+        route.kind === "episode" ? route.query ?? "" :
+        "";
+    queryEl.value = newQuery;
+    clearBtnEl.hidden = newQuery.length === 0;
+
     const crumbQuery = route.kind === "episode" ? route.query : undefined;
     setBreadcrumb(route, crumbQuery);
     syncSidebar();
 
     if (route.kind === "welcome") {
-        queryEl.value = "";
+        setStatus("");
         renderWelcome(mainPaneEl);
         mainPaneEl.scrollTop = savedScroll;
         return;
     }
 
     if (route.kind === "results") {
-        queryEl.value = route.query;
         const subs = getCachedSubtitles();
 
         if (subs.size < episodeIndex.length) {
@@ -184,8 +193,6 @@ async function handleRoute(route: Route, savedScroll = 0) {
     }
 
     if (route.kind === "episode") {
-        queryEl.value = route.query ?? "";
-
         const ep = episodeIndex.find((e) => e.id === route.id);
         if (!ep) {
             mainPaneEl.replaceChildren(episodeNotFoundMsg);
@@ -218,8 +225,6 @@ async function handleRoute(route: Route, savedScroll = 0) {
     }
 
     if (route.kind === "chapter") {
-        queryEl.value = "";
-
         const ep = episodeIndex.find((e) => e.id === route.episodeId);
         if (!ep) {
             mainPaneEl.replaceChildren(episodeNotFoundMsg);

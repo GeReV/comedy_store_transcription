@@ -256,3 +256,46 @@ test("direct load filtered episode → filter applied and query input populated"
     const hiddenLines = page.locator(".transcript-line.hidden");
     await expect(hiddenLines).toHaveCount(2);
 });
+
+// ---------------------------------------------------------------------------
+// Test 16: sidebar-list gets 'filtered' class when query is active
+// ---------------------------------------------------------------------------
+test("sidebar-list has 'filtered' class when a search query is active", async ({ page }) => {
+    await page.goto("/");
+    await page.fill("#query", "שלום");
+    await expect(page.locator(".sidebar-list.filtered")).toHaveCount(1);
+});
+
+// ---------------------------------------------------------------------------
+// Test 17: Back from results to welcome → sidebar-list loses 'filtered' class
+// ---------------------------------------------------------------------------
+test("back from results to welcome → sidebar-list loses 'filtered' class", async ({ page }) => {
+    await page.goto("/");
+    await page.fill("#query", "שלום");
+    await expect(page.locator(".sidebar-list.filtered")).toHaveCount(1);
+    await page.goBack();
+    await expect(page.locator(".sidebar-list.filtered")).toHaveCount(0);
+});
+
+// ---------------------------------------------------------------------------
+// Test 18: Back from filtered episode to welcome → sidebar-list loses 'filtered' class
+// ---------------------------------------------------------------------------
+test("back from filtered episode to welcome → sidebar-list loses 'filtered' class", async ({ page }) => {
+    await page.goto("/#episode/ep1?q=%D7%A9%D7%9C%D7%95%D7%9D");
+    await page.waitForSelector(".episode-header");
+    await expect(page.locator(".sidebar-list.filtered")).toHaveCount(1);
+    // Navigate to welcome via hash
+    await page.goto("/");
+    await expect(page.locator(".sidebar-list.filtered")).toHaveCount(0);
+});
+
+// ---------------------------------------------------------------------------
+// Test 19: Back from results to welcome → status bar is cleared
+// ---------------------------------------------------------------------------
+test("back from results to welcome → status bar is cleared", async ({ page }) => {
+    await page.goto("/");
+    await page.fill("#query", "שלום");
+    await expect(page.locator("#search-status")).toContainText("תוצאות");
+    await page.goBack();
+    await expect(page.locator("#search-status")).toHaveText("");
+});
