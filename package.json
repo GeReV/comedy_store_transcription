@@ -6,12 +6,14 @@
     "build:data": "python scripts/build_data.py",
     "build:ts": "esbuild src/main.ts --bundle --outfile=static/main.js --target=es2020 --minify --define:__DEV__=false",
     "build": "npm run build:data && npm run build:ts",
-    "dev": "concurrently \"esbuild src/main.ts --bundle --outfile=static/main.js --target=es2020 --watch --define:__DEV__=true\" \"serve static\""
+    "dev": "concurrently \"esbuild src/main.ts --bundle --outfile=static/main.js --target=es2020 --watch --define:__DEV__=true\" \"serve static\"",
+    "test:unit": "vitest run"
   },
   "devDependencies": {
     "concurrently": "^9.1.0",
     "esbuild": "^0.25.0",
     "serve": "^14.2.0",
-    "typescript": "^6.0.0"
+    "typescript": "^6.0.0",
+    "vitest": "^4.1.2"
   }
 }
