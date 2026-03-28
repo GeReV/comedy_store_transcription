@@ -316,6 +316,17 @@ clearBtnEl.addEventListener("click", () => {
     queryEl.focus();
 });
 
+// ── Sidebar query carry-through ────────────────────────────────────────
+sidebarEl.addEventListener("click", (e) => {
+    const a = (e.target as Element).closest<HTMLAnchorElement>("a[href^='#episode/']");
+    if (!a) { return; }
+    const q = queryEl.value.trim();
+    if (q.length < MIN_QUERY_LENGTH) { return; }
+    e.preventDefault();
+    const path = ensure(a.getAttribute("href"), "sidebar link missing href").slice(1);
+    navigate(`${path}?q=${encodeURIComponent(q)}`);
+});
+
 // ── Status ─────────────────────────────────────────────────────────────
 function setStatus(msg: string) {
     statusEl.textContent = msg;
