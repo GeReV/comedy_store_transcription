@@ -1,13 +1,14 @@
 Param(
 	[Parameter(Mandatory)]
 	[string] $Name,
+
+	[Parameter(Mandatory)]
+	[string] $OutputDir,
 	
 	[switch] $SkipChapters = $false
 )
 
 $WhisperExe = "..\whisper.cpp\build\bin\Release\whisper-cli.exe"
-
-$OutputDir = '..\process'
 
 $file = Get-Item -Path $Name
 

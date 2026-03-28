@@ -37,11 +37,13 @@ def convert_file(path: Path) -> bool:
 
 
 def main():
+    count = 0
     converted = 0
     errors = 0
 
     for ext in ("*.srt", "*.json"):
         for p in sorted(FILES_DIR.rglob(ext)):
+            count += 1
             try:
                 if convert_file(p):
                     converted += 1
@@ -49,7 +51,7 @@ def main():
                 print(f"  ERROR: {p.relative_to(ROOT)}: {e}")
                 errors += 1
 
-    print(f"\nDone. {converted} files converted, {errors} errors.")
+    print(f"\nDone. {converted} files converted, {errors} errors ({count} files checked).")
 
 
 if __name__ == "__main__":

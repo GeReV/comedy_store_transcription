@@ -1,8 +1,16 @@
-$SourceDir = "C:\Comedy_Store\"
+param(
+	[Parameter(Mandatory)]
+	[string] $SourceDir,
+
+	[Parameter(Mandatory)]
+	[string] $OutputDir
+)
+
+$SourceDir = Get-Item $SourceDir
+$OutputDir = Get-Item $OutputDir
 
 $WhisperExe = "..\whisper.cpp\build\bin\Release\whisper-cli.exe"
 
-$OutputDir = '..\process'
 $DoneList = Join-Path $OutputDir "donelist.txt"
 
 New-Item -Path $OutputDir -ItemType Directory -Force | Out-Null
