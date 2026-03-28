@@ -39,11 +39,15 @@ class MatroskaIO:
             if start_el is None or end_el is None:
                 continue
             name = name_el.text if name_el is not None and name_el.text else "N/A"
+            # Round down to ms to avoid sub-millisecond precision issues.
             chapters.append(Chapter(
-                start_ns=int(start_el.text),  # type: ignore[arg-type]
-                end_ns=int(end_el.text),       # type: ignore[arg-type]
+                start_ns=(int(start_el.text) // 1_000_000) * 1_000_000,  # type: ignore[arg-type]
+                end_ns=(int(end_el.text) // 1_000_000) * 1_000_000,       # type: ignore[arg-type]
                 name=name,
             ))
+        # Enforce strict adjacency: each chapter ends exactly where the next begins.
+        for i in range(len(chapters) - 1):
+            chapters[i].end_ns = chapters[i + 1].start_ns
         return chapters
 
     def write(self, chapters: list[Chapter], path: Path) -> None:

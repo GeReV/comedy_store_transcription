@@ -319,13 +319,13 @@ class PlayerWindow(QMainWindow):
         if direction == -1 and idx >= 0:
             chapter_start_ns = self._chapters[idx].start_ns
             if pos_ns - chapter_start_ns > 1_000_000_000 or idx == 0:
-                self._player.setPosition(chapter_start_ns // 1_000_000)
+                self._player.setPosition(-(-chapter_start_ns // 1_000_000))
                 return
         idx += direction
         if idx >= len(self._chapters):
             self._player.setPosition(self._player.duration())
         elif idx >= 0:
-            self._player.setPosition(self._chapters[idx].start_ns // 1_000_000)
+            self._player.setPosition(-(-self._chapters[idx].start_ns // 1_000_000))
 
     def _step_frame(self, direction: int) -> None:
         if self._frame_ns == 0:
