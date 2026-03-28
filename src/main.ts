@@ -323,8 +323,9 @@ sidebarEl.addEventListener("click", (e) => {
     const q = queryEl.value.trim();
     if (q.length < MIN_QUERY_LENGTH) { return; }
     e.preventDefault();
-    const path = ensure(a.getAttribute("href"), "sidebar link missing href").slice(1);
-    navigate(`${path}?q=${encodeURIComponent(q)}`);
+    const rawPath = ensure(a.getAttribute("href"), "sidebar link missing href").slice(1);
+    const cleanPath = rawPath.split("?")[0];
+    navigate(`${cleanPath}?q=${encodeURIComponent(q)}`);
 });
 
 // ── Status ─────────────────────────────────────────────────────────────
