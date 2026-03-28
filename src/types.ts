@@ -3,13 +3,18 @@ export interface EpisodeMetadata {
   title: string;
   /** Numeric sort key. Regular episodes: episode number. 2020 specials: 10000+. */
   num: number;
-  subtitle_file: string;
 }
 
 export interface Line {
   start: number; // seconds
   end: number;   // seconds
   text: string;
+}
+
+export interface Chapter {
+  start: number; // seconds
+  end: number;   // seconds
+  name: string;
 }
 
 export type EpisodeIndex = EpisodeMetadata[];

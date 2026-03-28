@@ -347,6 +347,11 @@ h1 {
   font-size: 1.2rem;
   font-weight: 700;
 }
+.episode-header h2 a {
+  color: inherit;
+  text-decoration: none;
+}
+.episode-header h2 a:hover { text-decoration: underline; }
 
 .transcript-list {
   display: flex;
@@ -376,6 +381,33 @@ h1 {
   padding-top: .1em;
 }
 .transcript-line .text { flex: 1; }
+
+.chapter-block {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  margin-bottom: .75rem;
+  overflow: hidden;
+}
+.chapter-block-header {
+  display: block;
+  padding: .35rem .6rem;
+  background: var(--surface-alt);
+  border-bottom: 1px solid var(--border);
+  font-weight: 600;
+  font-size: .85rem;
+  color: inherit;
+  text-decoration: none;
+}
+a.chapter-block-header:hover { text-decoration: underline; }
+.chapter-empty-state {
+  display: block;
+  padding: .35rem .6rem;
+  font-size: .8rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  text-decoration: none;
+}
+a.chapter-empty-state:hover { text-decoration: underline; }
 
 /* ── Generic states ──────────────────────────────────────────────────── */
 .state-message {
