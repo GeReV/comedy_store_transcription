@@ -1,7 +1,7 @@
 export type Route =
     | { kind: "welcome" }
     | { kind: "results"; query: string }
-    | { kind: "episode"; id: string; lineIndex?: number }
+    | { kind: "episode"; id: string; lineIndex?: number; query?: string }
     | { kind: "chapter"; episodeId: string; chapterIdx: number };
 
 export function parseHash(hash: string): Route {
@@ -14,7 +14,12 @@ export function parseHash(hash: string): Route {
     }
 
     if (raw.startsWith("episode/")) {
-        const rest = raw.slice("episode/".length);
+        const qIdx = raw.indexOf("?");
+        const path = qIdx !== -1 ? raw.slice(0, qIdx) : raw;
+        const qs = qIdx !== -1 ? raw.slice(qIdx + 1) : "";
+        const query = qs.startsWith("q=") ? decodeURIComponent(qs.slice(2)) : undefined;
+
+        const rest = path.slice("episode/".length);
         const slashIdx = rest.lastIndexOf("/");
         if (slashIdx !== -1) {
             const id = decodeURIComponent(rest.slice(0, slashIdx));
@@ -26,9 +31,9 @@ export function parseHash(hash: string): Route {
                 }
             }
             const lineIndex = parseInt(seg, 10);
-            return { kind: "episode", id, lineIndex: isNaN(lineIndex) ? undefined : lineIndex };
+            return { kind: "episode", id, lineIndex: isNaN(lineIndex) ? undefined : lineIndex, query };
         }
-        return { kind: "episode", id: decodeURIComponent(rest) };
+        return { kind: "episode", id: decodeURIComponent(rest), query };
     }
 
     return { kind: "welcome" };
