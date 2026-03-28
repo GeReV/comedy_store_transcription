@@ -1,21 +1,21 @@
 """
 Walks files/, parses every .srt file, and emits:
-  static/data/episodes.json          — episode metadata array
-  static/data/subtitles/<id>.json    — per-episode line arrays
-  static/data/subtitles.json         — all episodes combined [{id, lines[]}]
+  static/data/subtitles.json         — all episodes [{id, title, num, lines[], chapters?[]}]
   static/data/subtitles.json.gz      — gzip of the above
+
+chapters are sourced from .edited.chapters.xml files alongside the .srt (if present).
 """
 import gzip
 import json
 import os
 import re
 import unicodedata
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 ROOT = Path(__file__).parent.parent
 FILES_DIR = ROOT / "files"
 OUT_DIR = ROOT / "static" / "data"
-SUBTITLES_DIR = OUT_DIR / "subtitles"
 
 TIMESTAMP_RE = re.compile(
     r"(\d{2}):(\d{2}):(\d{2}),(\d{3})\s*-->\s*(\d{2}):(\d{2}):(\d{2}),(\d{3})"
@@ -76,6 +76,37 @@ def slugify(name: str) -> str:
     return "".join(out)
 
 
+def parse_chapters_xml(path: Path) -> list[dict]:
+    """Parse a .chapters.xml file, return [{start, end, name}] with times in seconds."""
+    try:
+        tree = ET.parse(path)
+    except Exception:
+        return []
+    chapters = []
+    for atom in tree.getroot().iter("ChapterAtom"):
+        start_el = atom.find("ChapterTimeStart")
+        end_el = atom.find("ChapterTimeEnd")
+        name_el = atom.find("ChapterDisplay/ChapterString")
+        if start_el is None or end_el is None:
+            continue
+        raw_name = name_el.text if name_el is not None else ""
+        name = "" if not raw_name or raw_name == "N/A" else raw_name
+        chapters.append({
+            "start": round(int(start_el.text) / 1_000_000_000, 3),
+            "end": round(int(end_el.text) / 1_000_000_000, 3),
+            "name": name,
+        })
+    return chapters
+
+
+def find_chapters(srt_path: Path) -> list[dict]:
+    """Return chapters for an episode from its .edited.chapters.xml, if it exists."""
+    edited = srt_path.parent / f"{srt_path.stem}.edited.chapters.xml"
+    if edited.exists():
+        return parse_chapters_xml(edited)
+    return []
+
+
 def episode_num_from_dir(dirname: str) -> int:
     """Extract numeric episode number from a directory like פרק_042-..."""
     m = re.match(r"פרק_0*(\d+)", dirname)
@@ -104,10 +135,11 @@ def make_title(dirname: str, ep_num: int) -> str:
     return f"פרק {ep_num} — {suffix}"
 
 
-def process_regular_episodes() -> tuple[list[dict], dict[str, list]]:
+def process_regular_episodes() -> tuple[list[dict], dict[str, list], dict[str, list]]:
     """Process all פרק_NNN... directories, one SRT per directory."""
     episodes = []
     all_lines: dict[str, list] = {}
+    all_chapters: dict[str, list] = {}
     for ep_dir in sorted(FILES_DIR.iterdir()):
         if not ep_dir.is_dir():
             continue
@@ -123,37 +155,31 @@ def process_regular_episodes() -> tuple[list[dict], dict[str, list]]:
         ep_num = episode_num_from_dir(dirname)
         ep_id = slugify(dirname)
         title = make_title(dirname, ep_num)
-        subtitle_file = f"subtitles/{ep_id}.json"
 
         lines = parse_srt(srt_path)
-        SUBTITLES_DIR.mkdir(parents=True, exist_ok=True)
-        (SUBTITLES_DIR / f"{ep_id}.json").write_text(
-            json.dumps(lines, ensure_ascii=False, separators=(",", ":")),
-            encoding="utf-8",
-        )
+        chapters = find_chapters(srt_path)
 
         all_lines[ep_id] = lines
-        episodes.append(
-            {
-                "id": ep_id,
-                "title": title,
-                "num": ep_num,
-                "subtitle_file": subtitle_file,
-            }
-        )
-        print(f"  {ep_id}: {len(lines)} lines")
 
-    return episodes, all_lines
+        if chapters:
+            all_chapters[ep_id] = chapters
+
+        episodes.append({"id": ep_id, "title": title, "num": ep_num})
+        chapter_note = f", {len(chapters)} chapters" if chapters else ""
+        print(f"  {ep_id}: {len(lines)} lines{chapter_note}")
+
+    return episodes, all_lines, all_chapters
 
 
-def process_2020_episodes() -> tuple[list[dict], dict[str, list]]:
+def process_2020_episodes() -> tuple[list[dict], dict[str, list], dict[str, list]]:
     """Process Comedy_Store_2020/ — individual ep files only."""
     ep2020_dir = FILES_DIR / "Comedy_Store_2020"
     if not ep2020_dir.exists():
-        return [], {}
+        return [], {}, {}
 
     episodes = []
     all_lines: dict[str, list] = {}
+    all_chapters: dict[str, list] = {}
     # Match only comedy_store_2020_epN.srt (skip the combined ComedyStore_2020_e1-3.srt)
     for srt_path in sorted(ep2020_dir.glob("comedy_store_2020_ep*.srt")):
         m = re.search(r"ep(\d+)", srt_path.stem)
@@ -162,56 +188,50 @@ def process_2020_episodes() -> tuple[list[dict], dict[str, list]]:
         ep_num = int(m.group(1))
         ep_id = f"comedy_2020_ep{ep_num}"
         title = f"קומדי סטור 2020 — פרק {ep_num}"
-        subtitle_file = f"subtitles/{ep_id}.json"
 
         lines = parse_srt(srt_path)
-        SUBTITLES_DIR.mkdir(parents=True, exist_ok=True)
-        (SUBTITLES_DIR / f"{ep_id}.json").write_text(
-            json.dumps(lines, ensure_ascii=False, separators=(",", ":")),
-            encoding="utf-8",
-        )
+        chapters = find_chapters(srt_path)
 
         all_lines[ep_id] = lines
-        # Sort 2020 eps after all regular episodes (num 10001+)
-        episodes.append(
-            {
-                "id": ep_id,
-                "title": title,
-                "num": 10000 + ep_num,
-                "subtitle_file": subtitle_file,
-            }
-        )
-        print(f"  {ep_id}: {len(lines)} lines")
 
-    return episodes, all_lines
+        if chapters:
+            all_chapters[ep_id] = chapters
+
+        # Sort 2020 eps after all regular episodes (num 10001+)
+        episodes.append({"id": ep_id, "title": title, "num": 10000 + ep_num})
+        chapter_note = f", {len(chapters)} chapters" if chapters else ""
+        print(f"  {ep_id}: {len(lines)} lines{chapter_note}")
+
+    return episodes, all_lines, all_chapters
 
 
 def main():
     OUT_DIR.mkdir(parents=True, exist_ok=True)
 
     print("Processing regular episodes...")
-    regular, regular_lines = process_regular_episodes()
+    regular, regular_lines, regular_chapters = process_regular_episodes()
 
     print("Processing Comedy Store 2020 episodes...")
-    special, special_lines = process_2020_episodes()
+    special, special_lines, special_chapters = process_2020_episodes()
 
     all_episodes = sorted(regular + special, key=lambda e: e["num"])
     all_lines = {**regular_lines, **special_lines}
+    all_chapters = {**regular_chapters, **special_chapters}
 
-    index_path = OUT_DIR / "episodes.json"
-    index_path.write_text(
-        json.dumps(all_episodes, ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
+    # Combined bundle — array of {id, title, num, lines, chapters?} ordered by episode number
+    def bundle_entry(ep: dict) -> dict:
+        entry: dict = {"id": ep["id"], "title": ep["title"], "num": ep["num"], "lines": all_lines[ep["id"]]}
+        if ep["id"] in all_chapters:
+            entry["chapters"] = all_chapters[ep["id"]]
+        return entry
 
-    # Combined subtitle bundle — array of {id, lines} ordered by episode number
-    combined = [{"id": ep["id"], "lines": all_lines[ep["id"]]} for ep in all_episodes]
+    combined = [bundle_entry(ep) for ep in all_episodes]
     combined_json = json.dumps(combined, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
     (OUT_DIR / "subtitles.json").write_bytes(combined_json)
     with gzip.open(OUT_DIR / "subtitles.json.gz", "wb") as f:
         f.write(combined_json)
 
-    print(f"\nDone. {len(all_episodes)} episodes → {index_path}")
+    print(f"\nDone. {len(all_episodes)} episodes.")
     print(f"  subtitles.json:    {len(combined_json) // 1024} KB")
     print(f"  subtitles.json.gz: {(OUT_DIR / 'subtitles.json.gz').stat().st_size // 1024} KB")
 
