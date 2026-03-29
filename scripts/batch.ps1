@@ -61,7 +61,7 @@ ForEach-Object {
 
 	# Step 4: Post-process
 	if ((Test-Path "$outfile.json") -and (Test-Path "$outfile.diarization.json")) {
-		Write-Host "[$($_.BaseName)] Post-processing...]"
+		Write-Host "[$($_.BaseName)] Post-processing..."
 		uv run python (Join-Path $ScriptsDir "postprocess.py") `
 			"$outfile.json" `
 			"$outfile.diarization.json" `
