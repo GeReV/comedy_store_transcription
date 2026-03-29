@@ -23,12 +23,6 @@ import torch
 import torch.torch_version
 import torchaudio
 
-# PyTorch 2.6 changed torch.load default to weights_only=True; pyannote
-# checkpoints contain TorchVersion objects which are not in the default safe
-# globals list.  Allowlist it before any pyannote import triggers a load.
-if hasattr(torch.serialization, "add_safe_globals"):
-    torch.serialization.add_safe_globals([torch.torch_version.TorchVersion])
-
 # huggingface_hub 0.23+ removed use_auth_token; pyannote-pipeline 3.0.1 (last
 # release, 2023) still passes it to hf_hub_download / snapshot_download.
 def _compat_hf(fn):
@@ -59,6 +53,18 @@ if not hasattr(torchaudio, "AudioMetaData"):
             "AudioMetaData",
             ["sample_rate", "num_frames", "num_channels", "bits_per_sample", "encoding"],
         )
+
+# PyTorch 2.6 changed torch.load default to weights_only=True; pyannote
+# checkpoints embed several non-tensor objects not in the default safe-globals
+# list.  Torchaudio shims must be in place before these pyannote imports.
+if hasattr(torch.serialization, "add_safe_globals"):
+    from pyannote.audio.core.task import Problem, Resolution, Specifications
+    torch.serialization.add_safe_globals([
+        torch.torch_version.TorchVersion,
+        Specifications,
+        Problem,
+        Resolution,
+    ])
 
 from pyannote.audio import Pipeline
 
