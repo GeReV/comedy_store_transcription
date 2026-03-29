@@ -2,7 +2,11 @@
 name = "comedy-store-transcribe"
 version = "0.1.0"
 requires-python = ">=3.13"
-dependencies = ["PyQt6"]
+dependencies = [
+    "PyQt6",
+    "pyannote.audio>=3.3",
+    "torch>=2.0",
+]
 
 [dependency-groups]
 dev = ["pytest"]
