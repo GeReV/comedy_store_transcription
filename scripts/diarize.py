@@ -20,7 +20,14 @@ load_dotenv()
 
 import huggingface_hub
 import torch
+import torch.torch_version
 import torchaudio
+
+# PyTorch 2.6 changed torch.load default to weights_only=True; pyannote
+# checkpoints contain TorchVersion objects which are not in the default safe
+# globals list.  Allowlist it before any pyannote import triggers a load.
+if hasattr(torch.serialization, "add_safe_globals"):
+    torch.serialization.add_safe_globals([torch.torch_version.TorchVersion])
 
 # huggingface_hub 0.23+ removed use_auth_token; pyannote-pipeline 3.0.1 (last
 # release, 2023) still passes it to hf_hub_download / snapshot_download.
