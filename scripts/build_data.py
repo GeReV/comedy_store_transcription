@@ -20,6 +20,7 @@ OUT_DIR = ROOT / "static" / "data"
 TIMESTAMP_RE = re.compile(
     r"(\d{2}):(\d{2}):(\d{2}),(\d{3})\s*-->\s*(\d{2}):(\d{2}):(\d{2}),(\d{3})"
 )
+SPEAKER_RE = re.compile(r"^\[SPEAKER_(\d+)\]\s*")
 
 
 def ts_to_seconds(h, m, s, ms) -> float:
@@ -56,7 +57,14 @@ def parse_srt(path: Path) -> list[dict]:
             l.strip() for l in block_lines[text_start:] if l.strip()
         )
         if body:
-            lines_out.append({"start": start, "end": end, "text": body})
+            entry: dict = {"start": start, "end": end}
+            m = SPEAKER_RE.match(body)
+            if m:
+                entry["speaker"] = f"SPEAKER_{m.group(1).zfill(2)}"
+                entry["text"] = body[m.end():]
+            else:
+                entry["text"] = body
+            lines_out.append(entry)
     return lines_out
 
 
