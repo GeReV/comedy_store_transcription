@@ -459,7 +459,7 @@ a.chapter-empty-state:hover { text-decoration: underline; }
     flex-wrap: wrap;
   }
 
-  h1 {
+  #top-bar-inner h1 {
     flex: 1;
   }
 
@@ -481,6 +481,7 @@ a.chapter-empty-state:hover { text-decoration: underline; }
     bottom: 0;
     width: 80%;
     max-width: 300px;
+    overflow-y: auto;
     transform: translateX(100%);
     transition: transform .25s ease;
     z-index: 20;
