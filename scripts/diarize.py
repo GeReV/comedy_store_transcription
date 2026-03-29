@@ -13,6 +13,10 @@ import json
 import os
 from pathlib import Path
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 import torch
 import torchaudio
 
@@ -39,7 +43,7 @@ def diarize(wav_path: Path, hf_token: str | None = None) -> list[dict]:
     """Run pyannote diarization, return sorted list of speaker turns."""
     pipeline = Pipeline.from_pretrained(
         "ivrit-ai/pyannote-speaker-diarization-3.1",
-        token=hf_token,
+        use_auth_token=hf_token,
     )
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     pipeline.to(device)
