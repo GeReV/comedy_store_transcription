@@ -10,7 +10,6 @@ Writes a JSON array of speaker turns:
 """
 import argparse
 import json
-import os
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -39,11 +38,10 @@ if not hasattr(torchaudio, "AudioMetaData"):
 from pyannote.audio import Pipeline
 
 
-def diarize(wav_path: Path, hf_token: str | None = None) -> list[dict]:
+def diarize(wav_path: Path) -> list[dict]:
     """Run pyannote diarization, return sorted list of speaker turns."""
     pipeline = Pipeline.from_pretrained(
         "ivrit-ai/pyannote-speaker-diarization-3.1",
-        hf_token=hf_token,
     )
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     pipeline.to(device)
@@ -64,8 +62,7 @@ def main() -> None:
     parser.add_argument("output", type=Path, help="Output .diarization.json path")
     args = parser.parse_args()
 
-    hf_token = os.environ.get("HF_TOKEN")
-    turns = diarize(args.wav, hf_token)
+    turns = diarize(args.wav)
 
     args.output.write_text(
         json.dumps(turns, ensure_ascii=False, indent=2), encoding="utf-8"
