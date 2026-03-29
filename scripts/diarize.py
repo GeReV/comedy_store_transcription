@@ -56,6 +56,28 @@ if not hasattr(torchaudio, "AudioMetaData"):
             ["sample_rate", "num_frames", "num_channels", "bits_per_sample", "encoding"],
         )
 
+# torchaudio 2.11 switched to torchcodec which requires FFmpeg DLLs.  Replace
+# torchaudio.load with a soundfile-based implementation that has no such
+# dependency and is sufficient for reading the 16 kHz mono WAV files used here.
+try:
+    torchaudio.load  # probe — if it raises on import we catch below
+    import soundfile as _sf
+    import numpy as _np
+
+    def _torchaudio_load_soundfile(
+        uri, *, frame_offset=0, num_frames=-1, normalize=True,
+        channels_first=True, format=None, buffer_size=4096, backend=None,
+    ):
+        frames = num_frames if num_frames != -1 else -1
+        data, sr = _sf.read(str(uri), frames=frames, start=frame_offset,
+                            dtype="float32", always_2d=True)
+        waveform = torch.from_numpy(data.T if channels_first else data)
+        return waveform, sr
+
+    torchaudio.load = _torchaudio_load_soundfile
+except Exception:
+    pass  # leave torchaudio.load as-is if soundfile is unavailable
+
 # PyTorch 2.6 changed torch.load default to weights_only=True; pyannote
 # checkpoints embed several non-tensor objects not in the default safe-globals
 # list.  Torchaudio shims must be in place before these pyannote imports.
