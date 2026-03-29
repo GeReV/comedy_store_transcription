@@ -19,9 +19,26 @@ def ms_to_ts(ms: int) -> str:
     return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
 
 
-def assign_speaker(segment: dict) -> dict:
-    """Assign speaker label to a segment. Stub for future implementation."""
-    raise NotImplementedError
+def _overlap_ms(a_start: int, a_end: int, b_start_s: float, b_end_s: float) -> float:
+    """Milliseconds of overlap between [a_start, a_end] (ms) and [b_start_s, b_end_s] (s)."""
+    b_start_ms = b_start_s * 1000
+    b_end_ms = b_end_s * 1000
+    return max(0.0, min(a_end, b_end_ms) - max(a_start, b_start_ms))
+
+
+def assign_speaker(start_ms: int, end_ms: int, turns: list[dict]) -> str:
+    """
+    Return the speaker ID with the greatest overlap with [start_ms, end_ms].
+    Returns empty string if no turn overlaps.
+    """
+    best_speaker = ""
+    best_overlap = 0.0
+    for turn in turns:
+        ov = _overlap_ms(start_ms, end_ms, turn["start"], turn["end"])
+        if ov > best_overlap:
+            best_overlap = ov
+            best_speaker = turn["speaker"]
+    return best_speaker
 
 
 def find_split_point(segment: dict) -> int | None:
