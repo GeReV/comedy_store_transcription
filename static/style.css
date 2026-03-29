@@ -171,6 +171,28 @@ h1 {
 }
 #theme-toggle:hover { background: var(--surface-alt); }
 
+/* ── Sidebar toggle (mobile only) ───────────────────────────────────── */
+#sidebar-toggle {
+  display: none; /* shown only on mobile */
+  align-items: center;
+  justify-content: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: .3rem .55rem;
+  font-size: .95rem;
+  line-height: 1;
+  color: var(--text);
+  flex-shrink: 0;
+  transition: background .15s;
+}
+#sidebar-toggle:hover { background: var(--surface-alt); }
+
+/* ── Backdrop (mobile only) ──────────────────────────────────────────── */
+#sidebar-backdrop {
+  display: none;
+}
+
 /* Default (light): show sun, hide moon */
 #theme-toggle .icon-dark { display: none; }
 #theme-toggle .icon-light { display: inline; }
@@ -427,3 +449,56 @@ a.chapter-empty-state:hover { text-decoration: underline; }
 #site-footer p { margin: 0; }
 #site-footer a { color: var(--text-muted); text-decoration: underline; }
 #site-footer a:hover { color: var(--accent); }
+
+/* ── Mobile layout (≤640px) ──────────────────────────────────────────── */
+@media (max-width: 640px) {
+  /* Top bar: two rows
+     Row 1: h1 (flex: 1) | theme-toggle | sidebar-toggle
+     Row 2: search-bar (full width, pushed to row 2 via order: 1)        */
+  #top-bar-inner {
+    flex-wrap: wrap;
+  }
+
+  h1 {
+    flex: 1;
+  }
+
+  #search-bar {
+    order: 1;
+    width: 100%;
+    flex-shrink: 0;
+  }
+
+  #sidebar-toggle {
+    display: inline-flex;
+  }
+
+  /* Sidebar: fixed drawer, slides in from right (RTL) */
+  #sidebar {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 80%;
+    max-width: 300px;
+    transform: translateX(100%);
+    transition: transform .25s ease;
+    z-index: 20;
+  }
+
+  body.sidebar-open #sidebar {
+    transform: translateX(0);
+  }
+
+  /* Backdrop */
+  #sidebar-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, .4);
+    z-index: 19;
+  }
+
+  body.sidebar-open #sidebar-backdrop {
+    display: block;
+  }
+}
