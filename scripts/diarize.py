@@ -9,6 +9,8 @@ Writes a JSON array of speaker turns:
     [{"start": 1.23, "end": 4.56, "speaker": "SPEAKER_00"}, ...]
 """
 import argparse
+import functools
+import inspect
 import json
 from pathlib import Path
 
@@ -16,8 +18,24 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+import huggingface_hub
 import torch
 import torchaudio
+
+# huggingface_hub 0.23+ removed use_auth_token; pyannote-pipeline 3.0.1 (last
+# release, 2023) still passes it to hf_hub_download / snapshot_download.
+def _compat_hf(fn):
+    if "use_auth_token" not in inspect.signature(fn).parameters:
+        @functools.wraps(fn)
+        def wrapper(*args, use_auth_token=None, **kwargs):
+            if use_auth_token is not None and "token" not in kwargs:
+                kwargs["token"] = use_auth_token
+            return fn(*args, **kwargs)
+        return wrapper
+    return fn
+
+huggingface_hub.hf_hub_download = _compat_hf(huggingface_hub.hf_hub_download)
+huggingface_hub.snapshot_download = _compat_hf(huggingface_hub.snapshot_download)
 
 # torchaudio 2.1 removed list_audio_backends; patch for pyannote.audio compat
 if not hasattr(torchaudio, "list_audio_backends"):
@@ -41,7 +59,7 @@ from pyannote.audio import Pipeline
 def diarize(wav_path: Path) -> list[dict]:
     """Run pyannote diarization, return sorted list of speaker turns."""
     pipeline = Pipeline.from_pretrained(
-        "ivrit-ai/pyannote-speaker-diarization-3.1",
+        "ivrit-ai/pyannote-speaker-diarization-3.1"
     )
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     pipeline.to(device)
