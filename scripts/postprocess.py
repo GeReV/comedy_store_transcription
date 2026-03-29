@@ -41,14 +41,61 @@ def assign_speaker(start_ms: int, end_ms: int, turns: list[dict]) -> str:
     return best_speaker
 
 
-def find_split_point(segment: dict) -> int | None:
-    """Find a suitable split point within a segment. Stub for future implementation."""
-    raise NotImplementedError
+def find_split_point(tokens: list[dict], boundary_ms: float, snap_window_ms: float = 500) -> int | None:
+    """
+    Find the index of the first token of the second split part.
+    Snaps to the token whose t_dtw is closest to boundary_ms within snap_window_ms.
+    Returns None if no valid token found or if split would be at index 0.
+    """
+    best_idx: int | None = None
+    best_dist = float("inf")
+    for i, token in enumerate(tokens):
+        t = token.get("t_dtw", -1)
+        if t == -1:
+            continue
+        dist = abs(t - boundary_ms)
+        if dist < best_dist and dist <= snap_window_ms:
+            best_dist = dist
+            best_idx = i
+    if best_idx is None or best_idx == 0:
+        return None
+    return best_idx
 
 
-def needs_split(segment: dict) -> bool:
-    """Determine if a segment should be split. Stub for future implementation."""
-    raise NotImplementedError
+def needs_split(
+    segment: dict,
+    corrected_start_ms: int,
+    turns: list[dict],
+    threshold: float = 0.2,
+) -> tuple[bool, int, str, str]:
+    """
+    Check whether a segment straddles a speaker boundary beyond the minority threshold.
+    Returns (should_split, boundary_ms, speaker_before, speaker_after).
+    """
+    start_s = corrected_start_ms / 1000
+    end_s = segment["offsets"]["to"] / 1000
+    duration = end_s - start_s
+    if duration <= 0:
+        return False, 0, "", ""
+
+    for i, turn in enumerate(turns):
+        boundary_s = turn["end"]
+        if not (start_s < boundary_s < end_s):
+            continue
+        if i + 1 >= len(turns):
+            continue
+        next_turn = turns[i + 1]
+        if turn["speaker"] == next_turn["speaker"]:
+            continue
+
+        ov_before = _overlap_ms(corrected_start_ms, segment["offsets"]["to"], turn["start"], turn["end"])
+        ov_after = _overlap_ms(corrected_start_ms, segment["offsets"]["to"], next_turn["start"], next_turn["end"])
+        minority_ms = min(ov_before, ov_after)
+
+        if minority_ms / (duration * 1000) >= threshold:
+            return True, int(boundary_s * 1000), turn["speaker"], next_turn["speaker"]
+
+    return False, 0, "", ""
 
 
 def process_segment(segment: dict) -> dict:
