@@ -28,6 +28,8 @@ const statusEl = ensure(document.getElementById("search-status"), "#search-statu
 const breadcrumbEl = ensure(document.getElementById("breadcrumb"), "#breadcrumb");
 const themeToggleEl = ensure(document.getElementById("theme-toggle"), "#theme-toggle");
 const clearBtnEl = ensure(document.querySelector<HTMLButtonElement>("#query-clear"), "#query-clear");
+const sidebarToggleEl = ensure(document.getElementById("sidebar-toggle"), "#sidebar-toggle");
+const backdropEl = ensure(document.getElementById("sidebar-backdrop"), "#sidebar-backdrop");
 
 // ── Cached state message elements ──────────────────────────────────────
 const loadingSubsMsg = makeStateMsg("טוען תמלילים...");
@@ -75,6 +77,17 @@ function initTheme() {
     }
 }
 
+// ── Sidebar drawer (mobile) ────────────────────────────────────────────
+function openSidebar() {
+    document.body.classList.add("sidebar-open");
+    sidebarToggleEl.setAttribute("aria-expanded", "true");
+}
+
+function closeSidebar() {
+    document.body.classList.remove("sidebar-open");
+    sidebarToggleEl.setAttribute("aria-expanded", "false");
+}
+
 themeToggleEl.addEventListener("click", () => {
     const current = document.documentElement.dataset["theme"];
     const isDark =
@@ -83,6 +96,15 @@ themeToggleEl.addEventListener("click", () => {
     const next = isDark ? "light" : "dark";
     document.documentElement.dataset["theme"] = next;
     localStorage.setItem("theme", next);
+});
+
+sidebarToggleEl.addEventListener("click", openSidebar);
+backdropEl.addEventListener("click", closeSidebar);
+
+document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && document.body.classList.contains("sidebar-open")) {
+        closeSidebar();
+    }
 });
 
 // ── Scroll persistence ─────────────────────────────────────────────────
@@ -325,6 +347,7 @@ clearBtnEl.addEventListener("click", () => {
 sidebarEl.addEventListener("click", (e) => {
     const a = (e.target as Element).closest<HTMLAnchorElement>("a[href^='#episode/']");
     if (!a) { return; }
+    closeSidebar();
     const q = queryEl.value.trim();
     if (q.length < MIN_QUERY_LENGTH) { return; }
     e.preventDefault();
