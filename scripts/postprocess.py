@@ -9,6 +9,7 @@ _SPECIAL_TOKEN_RE = re.compile(r"^\[_")
 
 
 def ms_to_ts(ms: int) -> str:
+
     """Convert milliseconds to SRT timestamp string HH:MM:SS,mmm."""
     h = ms // 3_600_000
     ms %= 3_600_000
@@ -138,6 +139,17 @@ def _split_segment(
     return seg_a, seg_b
 
 
+def get_corrected_start(segment: dict) -> int:
+    """
+    Return the first token's t_dtw value (ms) as the corrected segment start.
+    Falls back to segment's offsets.from if no token has a valid t_dtw.
+    """
+    for token in segment.get("tokens", []):
+        if token.get("t_dtw", -1) != -1:
+            return token["t_dtw"]
+    return segment["offsets"]["from"]
+
+
 def process_segment(segment: dict, turns: list[dict]) -> list[dict]:
     """
     Process one whisper segment: correct timestamp, optionally split, assign speaker.
@@ -216,14 +228,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-
-def get_corrected_start(segment: dict) -> int:
-    """
-    Return the first token's t_dtw value (ms) as the corrected segment start.
-    Falls back to segment's offsets.from if no token has a valid t_dtw.
-    """
-    for token in segment.get("tokens", []):
-        if token.get("t_dtw", -1) != -1:
-            return token["t_dtw"]
-    return segment["offsets"]["from"]

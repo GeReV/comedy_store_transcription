@@ -16,9 +16,9 @@ from pathlib import Path
 import torch
 import torchaudio
 
-# torchaudio >= 2.x removed list_audio_backends; patch for pyannote.audio compat
+# torchaudio 2.1 removed list_audio_backends; patch for pyannote.audio compat
 if not hasattr(torchaudio, "list_audio_backends"):
-    torchaudio.list_audio_backends = lambda: ["soundfile"]
+    torchaudio.list_audio_backends = lambda: ["sox", "soundfile"]
 
 from pyannote.audio import Pipeline
 
@@ -27,7 +27,7 @@ def diarize(wav_path: Path, hf_token: str | None = None) -> list[dict]:
     """Run pyannote diarization, return sorted list of speaker turns."""
     pipeline = Pipeline.from_pretrained(
         "ivrit-ai/pyannote-speaker-diarization-3.1",
-        use_auth_token=hf_token,  # noqa: deprecated-but-still-accepted by older pyannote
+        token=hf_token,
     )
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     pipeline.to(device)
