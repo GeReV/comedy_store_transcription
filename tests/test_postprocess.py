@@ -162,3 +162,45 @@ class TestNeedsSplit:
         seg = self._seg_with_tokens(3000, 7000)
         should, *_ = needs_split(seg, 3000, turns)
         assert should is False
+
+
+class TestProcessSegment:
+    def make_turns_two_speakers(self):
+        return [
+            {"start": 0.0,  "end": 10.0, "speaker": "SPEAKER_00"},
+            {"start": 10.0, "end": 20.0, "speaker": "SPEAKER_01"},
+        ]
+
+    def test_corrects_timestamp_and_assigns_speaker(self):
+        tokens = [
+            make_token(t_dtw=-1,   offset_from=0,   offset_to=100, text="[_BEG_]"),
+            make_token(t_dtw=3000, offset_from=100,  offset_to=300, text=" שלום"),
+            make_token(t_dtw=4000, offset_from=300,  offset_to=500, text=" עולם"),
+        ]
+        seg = make_segment(2000, 8000, tokens, text=" שלום עולם")
+        result = process_segment(seg, self.make_turns_two_speakers())
+        assert len(result) == 1
+        assert result[0]["offsets"]["from"] == 3000    # DTW corrected
+        assert result[0]["speaker"] == "SPEAKER_00"
+
+    def test_splits_at_speaker_boundary(self):
+        # segment 7s–13s: crosses boundary at 10s
+        tokens = [
+            make_token(t_dtw=7100,  offset_from=0,    offset_to=500,  text=" ראשון"),
+            make_token(t_dtw=8000,  offset_from=500,   offset_to=1000, text=" שני"),
+            make_token(t_dtw=10200, offset_from=1000,  offset_to=1500, text=" שלישי"),
+            make_token(t_dtw=11000, offset_from=1500,  offset_to=2000, text=" רביעי"),
+        ]
+        seg = make_segment(7000, 13000, tokens, text=" ראשון שני שלישי רביעי")
+        result = process_segment(seg, self.make_turns_two_speakers())
+        assert len(result) == 2
+        assert result[0]["speaker"] == "SPEAKER_00"
+        assert result[1]["speaker"] == "SPEAKER_01"
+
+    def test_no_split_when_minority_below_threshold(self):
+        # segment 1s–9.5s: almost entirely SPEAKER_00
+        tokens = [make_token(t_dtw=1100, offset_from=0, offset_to=200)]
+        seg = make_segment(1000, 9500, tokens, text="כולו SPEAKER_00")
+        result = process_segment(seg, self.make_turns_two_speakers())
+        assert len(result) == 1
+        assert result[0]["speaker"] == "SPEAKER_00"

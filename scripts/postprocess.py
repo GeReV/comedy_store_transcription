@@ -98,9 +98,124 @@ def needs_split(
     return False, 0, "", ""
 
 
-def process_segment(segment: dict) -> dict:
-    """Process a single segment. Stub for future implementation."""
-    raise NotImplementedError
+def _tokens_to_text(tokens: list[dict]) -> str:
+    return "".join(
+        t["text"] for t in tokens if not _SPECIAL_TOKEN_RE.match(t["text"])
+    ).strip()
+
+
+def _split_segment(
+    segment: dict,
+    corrected_start_ms: int,
+    split_idx: int,
+    spk_before: str,
+    spk_after: str,
+) -> tuple[dict, dict]:
+    tokens = segment.get("tokens", [])
+    tokens_a = tokens[:split_idx]
+    tokens_b = tokens[split_idx:]
+
+    end_a_ms = tokens_a[-1]["offsets"]["to"] if tokens_a else segment["offsets"]["to"]
+    start_b_ms = tokens_b[0]["offsets"]["from"] if tokens_b else corrected_start_ms
+    end_b_ms = segment["offsets"]["to"]
+
+    seg_a = {
+        **segment,
+        "tokens": tokens_a,
+        "text": _tokens_to_text(tokens_a),
+        "offsets": {"from": corrected_start_ms, "to": end_a_ms},
+        "timestamps": {"from": ms_to_ts(corrected_start_ms), "to": ms_to_ts(end_a_ms)},
+        "speaker": spk_before,
+    }
+    seg_b = {
+        **segment,
+        "tokens": tokens_b,
+        "text": _tokens_to_text(tokens_b),
+        "offsets": {"from": start_b_ms, "to": end_b_ms},
+        "timestamps": {"from": ms_to_ts(start_b_ms), "to": ms_to_ts(end_b_ms)},
+        "speaker": spk_after,
+    }
+    return seg_a, seg_b
+
+
+def process_segment(segment: dict, turns: list[dict]) -> list[dict]:
+    """
+    Process one whisper segment: correct timestamp, optionally split, assign speaker.
+    Returns a list of one or two corrected segments.
+    """
+    corrected_start = get_corrected_start(segment)
+
+    should_split, boundary_ms, spk_before, spk_after = needs_split(
+        segment, corrected_start, turns
+    )
+
+    if should_split:
+        split_idx = find_split_point(segment.get("tokens", []), boundary_ms)
+        if split_idx is not None:
+            seg_a, seg_b = _split_segment(
+                segment, corrected_start, split_idx, spk_before, spk_after
+            )
+            return [seg_a, seg_b]
+
+    corrected = {
+        **segment,
+        "offsets": {**segment["offsets"], "from": corrected_start},
+        "timestamps": {**segment["timestamps"], "from": ms_to_ts(corrected_start)},
+        "speaker": assign_speaker(corrected_start, segment["offsets"]["to"], turns),
+    }
+    return [corrected]
+
+
+def process_transcription(transcription: list[dict], turns: list[dict]) -> list[dict]:
+    """Process all segments and return the flattened, corrected list."""
+    result = []
+    for segment in transcription:
+        result.extend(process_segment(segment, turns))
+    return result
+
+
+def write_srt(segments: list[dict], path: Path) -> None:
+    """Write SRT file with optional [SPEAKER_XX] prefix on each line."""
+    blocks = []
+    idx = 1
+    for seg in segments:
+        text = seg["text"].strip()
+        if not text:
+            continue
+        speaker = seg.get("speaker", "")
+        prefix = f"[{speaker}] " if speaker else ""
+        start = ms_to_ts(seg["offsets"]["from"])
+        end = ms_to_ts(seg["offsets"]["to"])
+        blocks.append(f"{idx}\n{start} --> {end}\n{prefix}{text}")
+        idx += 1
+    path.write_text("\n\n".join(blocks) + "\n", encoding="utf-8")
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Post-process whisper + diarization")
+    parser.add_argument("whisper_json", type=Path)
+    parser.add_argument("diarization_json", type=Path)
+    parser.add_argument("--out-srt", type=Path, required=True)
+    parser.add_argument("--out-json", type=Path, required=True)
+    args = parser.parse_args()
+
+    whisper_data = json.loads(args.whisper_json.read_text(encoding="utf-8"))
+    turns = json.loads(args.diarization_json.read_text(encoding="utf-8"))
+
+    segments = process_transcription(whisper_data["transcription"], turns)
+
+    out_data = {**whisper_data, "transcription": segments}
+    args.out_json.write_text(
+        json.dumps(out_data, ensure_ascii=False, separators=(",", ":")),
+        encoding="utf-8",
+    )
+
+    write_srt(segments, args.out_srt)
+    print(f"Wrote {len(segments)} segments to {args.out_srt}")
+
+
+if __name__ == "__main__":
+    main()
 
 
 def get_corrected_start(segment: dict) -> int:
