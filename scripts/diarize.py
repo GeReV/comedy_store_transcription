@@ -38,9 +38,11 @@ def _compat_hf(fn):
 huggingface_hub.hf_hub_download = _compat_hf(huggingface_hub.hf_hub_download)
 huggingface_hub.snapshot_download = _compat_hf(huggingface_hub.snapshot_download)
 
-# torchaudio 2.1 removed list_audio_backends; patch for pyannote.audio compat
+# torchaudio 2.1 removed list_audio_backends; torchaudio 2.11 replaced sox/
+# soundfile with torchcodec.  Return [] so pyannote passes backend=None and
+# torchaudio uses its default (torchcodec).
 if not hasattr(torchaudio, "list_audio_backends"):
-    torchaudio.list_audio_backends = lambda: ["sox", "soundfile"]
+    torchaudio.list_audio_backends = lambda: []
 
 # torchaudio 2.x removed AudioMetaData from top-level; patch for pyannote.audio compat
 if not hasattr(torchaudio, "AudioMetaData"):
