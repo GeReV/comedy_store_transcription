@@ -81,11 +81,13 @@ function initTheme() {
 function openSidebar() {
     document.body.classList.add("sidebar-open");
     sidebarToggleEl.setAttribute("aria-expanded", "true");
+    sidebarToggleEl.setAttribute("aria-label", "סגור רשימת פרקים");
 }
 
 function closeSidebar() {
     document.body.classList.remove("sidebar-open");
     sidebarToggleEl.setAttribute("aria-expanded", "false");
+    sidebarToggleEl.setAttribute("aria-label", "פתח רשימת פרקים");
 }
 
 themeToggleEl.addEventListener("click", () => {

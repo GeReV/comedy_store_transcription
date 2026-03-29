@@ -156,6 +156,8 @@ h1 {
   flex-shrink: 0;
 }
 
+#search-status:empty { display: none; }
+
 /* ── Theme toggle ────────────────────────────────────────────────────── */
 #theme-toggle {
   margin-inline-start: auto;
