@@ -20,6 +20,18 @@ import torchaudio
 if not hasattr(torchaudio, "list_audio_backends"):
     torchaudio.list_audio_backends = lambda: ["sox", "soundfile"]
 
+# torchaudio 2.x removed AudioMetaData from top-level; patch for pyannote.audio compat
+if not hasattr(torchaudio, "AudioMetaData"):
+    try:
+        from torchaudio.backend.common import AudioMetaData
+        torchaudio.AudioMetaData = AudioMetaData
+    except ImportError:
+        from collections import namedtuple
+        torchaudio.AudioMetaData = namedtuple(
+            "AudioMetaData",
+            ["sample_rate", "num_frames", "num_channels", "bits_per_sample", "encoding"],
+        )
+
 from pyannote.audio import Pipeline
 
 
