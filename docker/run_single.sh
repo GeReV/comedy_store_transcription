@@ -5,7 +5,7 @@ set -euo pipefail
 
 VIDEO="$1"; shift
 MODELS_DIR="$(dirname "$0")/../whisper.cpp/models"
-OUTPUT_DIR="$(dirname "$0")/../process"
+OUTPUT_DIR="${PROCESS_DIR:-$(dirname "$0")/../process}"
 
 docker run --gpus all --rm \
   -v "$(realpath "$VIDEO"):/input/$(basename "$VIDEO"):ro" \
