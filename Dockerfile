@@ -14,7 +14,10 @@ RUN cmake -B build -DCMAKE_BUILD_TYPE=Release \
 
 
 # ── Stage 2: runtime ─────────────────────────────────────────────────────────
-FROM ubuntu:22.04
+# nvidia/cuda provides the CUDA runtime so we can install torch from the
+# PyTorch wheel index (a single self-contained wheel) instead of pulling
+# ~8 GB of nvidia-* Python packages from PyPI.
+FROM nvidia/cuda:12.6.3-cudnn-runtime-ubuntu22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -29,18 +32,20 @@ RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 ENV PATH="/root/.local/bin:$PATH"
 
 WORKDIR /app
-COPY pyproject.toml uv.lock ./
-# uv sync on Linux installs torch with bundled CUDA 13.x Python packages;
-# GPU access is provided at runtime by the NVIDIA Container Toolkit (--gpus all).
-RUN uv sync --no-dev
+
+# Install torch from the PyTorch CUDA 12.6 wheel index (no nvidia-* packages).
+# Install remaining deps from pyproject.toml directly.
+# We bypass the lock file here because it resolved torch for Windows (CPU).
+RUN uv pip install --python 3.13 --system \
+        torch torchaudio \
+        --index-url https://download.pytorch.org/whl/cu126 \
+    && uv pip install --python 3.13 --system \
+        "pyannote.audio>=3.3,<4.0" \
+        python-dotenv
 
 COPY scripts/ ./scripts/
 COPY docker/  ./docker/
 RUN chmod +x /app/docker/*.sh
-
-# Make the venv's Python the default.
-ENV VIRTUAL_ENV=/app/.venv
-ENV PATH="/app/.venv/bin:$PATH"
 
 # Override these with -e if your model filenames differ.
 ENV WHISPER_MODEL=/models/ivrit-ggml-large-v3-turbo.bin
