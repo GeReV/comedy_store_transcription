@@ -1,0 +1,14 @@
+.venv/
+.git/
+node_modules/
+files/
+process/
+process-temp/
+scripts/process-temp/
+static/data/
+whisper.cpp/
+*.mkv
+*.mp4
+*.avi
+*.wav
+.env
