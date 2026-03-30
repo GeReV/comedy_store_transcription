@@ -4,12 +4,16 @@
 set -euo pipefail
 
 INPUT_DIR="$1"; shift
-MODELS_DIR="$(dirname "$0")/../whisper.cpp/models"
-OUTPUT_DIR="${PROCESS_DIR:-$(dirname "$0")/../process}"
+ROOT="$(realpath "$(dirname "$0")/..")"
+MODELS_DIR="$ROOT/whisper.cpp/models"
+OUTPUT_DIR="${PROCESS_DIR:-$ROOT/process}"
+
+mkdir -p "$OUTPUT_DIR"
+IMAGE=$(docker build --quiet "$ROOT")
 
 docker run --gpus all --rm \
   -v "$(realpath "$INPUT_DIR"):/input:ro" \
-  -v "$(realpath "$MODELS_DIR"):/models:ro" \
-  -v "$(realpath "$OUTPUT_DIR"):/output" \
-  --env-file "$(dirname "$0")/../.env" \
-  comedy-transcribe batch /input /output "$@"
+  -v "$MODELS_DIR:/models:ro" \
+  -v "$OUTPUT_DIR:/output" \
+  --env-file "$ROOT/.env" \
+  "$IMAGE" batch /input /output "$@"
