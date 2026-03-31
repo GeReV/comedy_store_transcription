@@ -45,7 +45,7 @@ ForEach-Object {
 		"-m", "..\whisper.cpp\models\ivrit-ggml-large-v3-turbo.bin",
 		"-vm", "..\whisper.cpp\models\ggml-silero-v6.2.0.bin",
 		"--vad", "-l", "he", "-ojf", "-osrt", "-of", "temp", "-pp",
-		"-et", "2.8", "-mc", "64", "--dtw", "medium", "--max-len", "160",
+		"-et", "2.8", "-mc", "64", "--dtw", "large.v3.turbo", "--no-flash-attn", "--max-len", "160",
 		"-f", $tempWav
 	)
 	& $WhisperExe @whisperArgs 2>&1 | Tee-Object -FilePath $outlog -Append

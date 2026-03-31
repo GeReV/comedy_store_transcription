@@ -134,12 +134,21 @@ Edits are written to `<basename>.edited.chapters.xml` (alongside the original), 
 
 ## Architecture
 
-The pipeline has two stages:
+The pipeline has four stages:
 
 **Stage 1 — Transcription (`batch.ps1` / `single.ps1`):**
 ffmpeg extracts mono 16kHz PCM audio from the video and pipes it directly to `whisper-cli`, which outputs `.srt` and `.json`. In parallel, a second ffmpeg pass runs scene detection (`select='gt(scene,0.4)'`) and writes raw output to a `.scenes` log file.
 
-Key whisper flags: `-l he` (Hebrew), `--vad` (voice activity detection with silero), `-et 2.8` (entropy threshold), `-mc 64` (max context), `-pp` (print progress).
+Key whisper flags: `-l he` (Hebrew), `--vad` (voice activity detection with silero), `-et 2.8` (entropy threshold), `-mc 64` (max context), `-pp` (print progress), `--dtw large.v3.turbo` (word-level DTW timestamps), `--no-flash-attn` (required — flash attention silently disables DTW).
+
+**Stage 1.5 — Post-processing (`scripts/postprocess.py`):**
+Runs immediately after transcription (Step 4 in `single.ps1`). Combines the raw whisper JSON with speaker diarization output from `diarize.py` (pyannote) to produce a corrected `.srt` and a `.processed.json` with per-segment speaker labels.
+
+Two corrections are applied to each segment:
+
+1. **Timestamp correction** — whisper assigns segment start times to the internal processing chunk boundary, not the actual speech onset. When DTW token timestamps (`t_dtw`) are available they are used directly. When they are absent (-1), the diarization turns within the segment window are scanned for the largest silent gap; if that gap is ≥ 3 s the segment start is snapped to the first speech after the gap. This fixes cases where a transcribed line appears tens of seconds before it is actually spoken.
+
+2. **Speaker splitting** — if a segment straddles a speaker boundary and neither speaker is a minority (< 20 % of the segment duration), the segment is split at the boundary using DTW token timestamps to locate the cut point.
 
 **Stage 2 — Chapter generation (`chapters.py`):**
 Parses the `.scenes` log using regex to extract scene timestamps and video duration, then emits a Matroska-compatible chapter XML. Chapters use language `heb` and title `N/A` (chapters are positional markers, not named scenes). Time values are in nanoseconds as required by the Matroska spec.

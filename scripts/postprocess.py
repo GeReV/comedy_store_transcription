@@ -1,3 +1,39 @@
+"""
+Post-process whisper transcription output with speaker diarization.
+
+Takes the raw whisper JSON (produced by whisper-cli with --dtw) and a speaker
+diarization JSON (produced by diarize.py / pyannote), and writes a corrected
+SRT and a processed JSON where each segment has:
+
+  - a corrected start timestamp (see below)
+  - an optional speaker split if the segment straddles a speaker boundary
+  - a [SPEAKER_XX] label assigned by maximum overlap with diarization turns
+
+Timestamp correction
+--------------------
+whisper-cli assigns segment start times to the beginning of the internal
+processing chunk rather than to where speech actually starts.  Both paths are always evaluated and the later timestamp wins:
+
+1. DTW (t_dtw): when t_dtw != -1 on any token, the first such value is
+   converted to absolute ms.  t_dtw is stored in 10ms ticks and is
+   chunk-relative (same reference frame as token offsets.from/to):
+   absolute_ms = (segment.offsets.from - token.offsets.from) + t_dtw * 10.
+   DTW can misalign against earlier audio in the same chunk, so it is not
+   used unconditionally.
+
+2. Gap detection: diarization turns within the segment window are scanned for
+   the largest silent gap; if it is ≥ 3 s the onset of speech after that gap
+   is returned.  This overrides a DTW result that falls before the silence,
+   which happens when the transcribed text belongs to a later scene.
+
+When t_dtw is unavailable (-1 on all tokens), the segment start may be
+significantly earlier than the actual speech.  In that case the diarization
+turns within the segment window are used to detect large silences: if the
+longest gap between consecutive speech turns inside the window is ≥ 3 s, the
+segment start is snapped to the first speech after that gap.  This handles the
+common case where whisper places a segment at a chunk boundary but the
+transcribed text only occurs well into the chunk.
+"""
 from __future__ import annotations
 
 import argparse
@@ -139,15 +175,66 @@ def _split_segment(
     return seg_a, seg_b
 
 
-def get_corrected_start(segment: dict) -> int:
+def get_corrected_start(segment: dict, turns: list[dict] | None = None) -> int:
     """
-    Return the first token's t_dtw value (ms) as the corrected segment start.
-    Falls back to segment's offsets.from if no token has a valid t_dtw.
+    Return the corrected segment start in milliseconds.
+
+    Priority:
+      1. First token's t_dtw (word-level DTW timestamp from whisper --dtw).
+      2. If t_dtw is unavailable (-1 on all tokens): scan diarization turns
+         within the segment window for the largest silent gap; if it is ≥ 3 s,
+         return the onset of speech after that gap.
+      3. Fall back to segment's raw offsets.from.
+
+    See module docstring for the full rationale.
     """
+    seg_start = segment["offsets"]["from"]
+    seg_end = segment["offsets"]["to"]
+
+    # --- Path 1: DTW token timestamp ---
+    # t_dtw is in 10ms ticks and chunk-relative (same frame as token offsets).
+    # token.offsets.from is also chunk-relative; segment.offsets.from is absolute.
+    # Absolute ms = (segment.offsets.from - token.offsets.from) + t_dtw * 10
+    dtw_start: int | None = None
     for token in segment.get("tokens", []):
         if token.get("t_dtw", -1) != -1:
-            return token["t_dtw"]
-    return segment["offsets"]["from"]
+            chunk_start_ms = seg_start - token["offsets"]["from"]
+            dtw_start = chunk_start_ms + token["t_dtw"] * 10
+            break
+
+    # --- Path 2: Diarization gap detection ---
+    # If a large silence exists within the segment window, the text belongs to
+    # the speech cluster after the gap, not to the start of the window.
+    # This corrects cases where DTW aligns against the wrong (earlier) audio.
+    gap_start: int | None = None
+    if turns:
+        window_turns = sorted(
+            (t for t in turns if int(t["start"] * 1000) < seg_end and int(t["end"] * 1000) > seg_start),
+            key=lambda t: t["start"],
+        )
+        _MIN_GAP_MS = 3_000
+        best_gap = 0
+        best_onset_ms = seg_start
+        prev_end_ms = seg_start
+        for turn in window_turns:
+            turn_start_ms = int(turn["start"] * 1000)
+            gap = turn_start_ms - prev_end_ms
+            if gap > best_gap:
+                best_gap = gap
+                best_onset_ms = turn_start_ms
+            prev_end_ms = max(prev_end_ms, int(turn["end"] * 1000))
+        if best_gap >= _MIN_GAP_MS:
+            gap_start = best_onset_ms
+
+    # Take the later of the two estimates: if diarization places a big silence
+    # after what DTW claims, DTW is aligned against the wrong audio.
+    if dtw_start is not None and gap_start is not None:
+        return max(dtw_start, gap_start)
+    if dtw_start is not None:
+        return dtw_start
+    if gap_start is not None:
+        return gap_start
+    return seg_start
 
 
 def process_segment(segment: dict, turns: list[dict]) -> list[dict]:
@@ -155,7 +242,7 @@ def process_segment(segment: dict, turns: list[dict]) -> list[dict]:
     Process one whisper segment: correct timestamp, optionally split, assign speaker.
     Returns a list of one or two corrected segments.
     """
-    corrected_start = get_corrected_start(segment)
+    corrected_start = get_corrected_start(segment, turns)
 
     should_split, boundary_ms, spk_before, spk_after = needs_split(
         segment, corrected_start, turns
@@ -211,7 +298,7 @@ def main() -> None:
     parser.add_argument("--out-json", type=Path, required=True)
     args = parser.parse_args()
 
-    whisper_data = json.loads(args.whisper_json.read_text(encoding="utf-8"))
+    whisper_data = json.loads(args.whisper_json.read_text(encoding="utf-8", errors="ignore"))
     turns = json.loads(args.diarization_json.read_text(encoding="utf-8"))
 
     segments = process_transcription(whisper_data["transcription"], turns)

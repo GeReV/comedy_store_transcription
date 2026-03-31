@@ -1,5 +1,5 @@
 # ── Stage 1: build whisper.cpp ───────────────────────────────────────────────
-FROM ubuntu:22.04 AS whisper-builder
+FROM nvidia/cuda:12.6.3-cudnn-devel-ubuntu22.04 AS whisper-builder
 
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y \
@@ -8,8 +8,12 @@ RUN apt-get update && apt-get install -y \
 
 RUN git clone --depth=1 https://github.com/ggml-org/whisper.cpp /whisper.cpp
 WORKDIR /whisper.cpp
-# CPU-only build; fast enough for 16 kHz mono and avoids CUDA dev toolchain.
-RUN cmake -B build -DCMAKE_BUILD_TYPE=Release \
+
+ENV LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/usr/local/cuda-12.6/compat"
+
+RUN sed -i 's#set(BUILD_SHARED_LIBS_DEFAULT ON)#set(BUILD_SHARED_LIBS_DEFAULT OFF)#g' /whisper.cpp/CMakeLists.txt
+
+RUN cmake -B build -DGGML_CUDA=1 \
     && cmake --build build --config Release --target whisper-cli -j$(nproc)
 
 
@@ -25,23 +29,26 @@ RUN apt-get update && apt-get install -y \
         ffmpeg curl ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=whisper-builder /whisper.cpp/build/bin/whisper-cli /usr/local/bin/whisper-cli
-
 # uv manages Python 3.13 and the project venv.
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 ENV PATH="/root/.local/bin:$PATH"
 
 WORKDIR /app
 
+RUN uv python install 3.13
+
 # Install torch from the PyTorch CUDA 12.6 wheel index (no nvidia-* packages).
 # Install remaining deps from pyproject.toml directly.
 # We bypass the lock file here because it resolved torch for Windows (CPU).
-RUN uv pip install --python 3.13 --system \
+RUN uv pip install --system --break-system-packages \
         torch torchaudio \
         --index-url https://download.pytorch.org/whl/cu126 \
-    && uv pip install --python 3.13 --system \
+    && uv pip install --system --break-system-packages \
         "pyannote.audio>=3.3,<4.0" \
         python-dotenv
+
+RUN mkdir -p /app/whisper.cpp
+COPY --from=whisper-builder /whisper.cpp/build/bin/whisper-cli /app/whisper.cpp/whisper-cli
 
 COPY scripts/ ./scripts/
 COPY docker/  ./docker/

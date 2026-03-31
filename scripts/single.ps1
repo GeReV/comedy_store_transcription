@@ -22,7 +22,7 @@ New-Item -Path $outdir -ItemType Directory -Force | Out-Null
 $outfile   = Join-Path $outdir $file.BaseName
 $outscenes = Join-Path $outdir "$($file.BaseName).scenes"
 $outlog    = Join-Path $outdir "$($file.BaseName).log"
-$tempWav   = Join-Path $outdir "$($file.BaseName).tmp.wav"
+$tempWav   = "tmp.wav"
 
 # Step 1: Extract 16 kHz mono WAV
 Write-Host "Extracting audio..."
@@ -41,7 +41,8 @@ $whisperArgs = @(
 	"-pp",
 	"-et", "2.8",
 	"-mc", "64",
-	"--dtw", "medium",
+	"--dtw", "large.v3.turbo",
+	"--no-flash-attn",
 	"--max-len", "160",
 	"-f", $tempWav
 )

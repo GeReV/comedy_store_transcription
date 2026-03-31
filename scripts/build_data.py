@@ -3,6 +3,10 @@ Walks files/, parses every .srt file, and emits:
   static/data/subtitles.json         — all episodes [{id, title, num, lines[], chapters?[]}]
   static/data/subtitles.json.gz      — gzip of the above
 
+Lines are {start, end, text} with times in seconds.  [SPEAKER_XX] prefixes
+produced by postprocess.py are stripped from the text and not included in the
+output (speaker display is not yet implemented in the website).
+
 chapters are sourced from .edited.chapters.xml files alongside the .srt (if present).
 """
 import gzip
@@ -57,14 +61,9 @@ def parse_srt(path: Path) -> list[dict]:
             l.strip() for l in block_lines[text_start:] if l.strip()
         )
         if body:
-            entry: dict = {"start": start, "end": end}
             m = SPEAKER_RE.match(body)
-            if m:
-                entry["speaker"] = f"SPEAKER_{m.group(1).zfill(2)}"
-                entry["text"] = body[m.end():]
-            else:
-                entry["text"] = body
-            lines_out.append(entry)
+            text = body[m.end():] if m else body
+            lines_out.append({"start": start, "end": end, "text": text})
     return lines_out
 
 
