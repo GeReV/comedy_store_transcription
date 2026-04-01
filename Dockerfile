@@ -41,10 +41,10 @@ RUN uv python install 3.13
 # Install remaining deps from pyproject.toml directly.
 # We bypass the lock file here because it resolved torch for Windows (CPU).
 RUN uv pip install --system --break-system-packages \
-        torch torchaudio \
+        torch torchaudio torchcodec \
         --index-url https://download.pytorch.org/whl/cu126 \
     && uv pip install --system --break-system-packages \
-        "pyannote.audio>=3.3,<4.0" \
+        "pyannote.audio>=4.0,<5.0" \
         python-dotenv
 
 RUN mkdir -p /app/whisper.cpp
