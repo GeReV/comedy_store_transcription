@@ -11,7 +11,7 @@ case "$cmd" in
         echo "Usage: docker run <image> {single|batch} ..."
         echo ""
         echo "  single <input_file> <output_dir> [--skip-chapters] [--skip-diarize]"
-        echo "  batch  <input_dir>  <output_dir> [--skip-diarize]"
+        echo "  batch  <input_dir>  <output_dir> [--skip-chapters] [--skip-diarize]"
         exit 1
         ;;
 esac
