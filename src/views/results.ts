@@ -1,7 +1,8 @@
 import type { EpisodeSearchResult, EpisodeLines, DisplayEntry } from "../types.js";
-import { MAX_ENTRIES_PER_GROUP, formatTime } from "../search.js";
+import { MAX_ENTRIES_PER_GROUP } from "../search.js";
 import { applyHighlights } from "../highlight.js";
 import { buildEpisodeHash } from "../router.js";
+import { formatTime } from "../utils";
 
 const noResultsEl = document.createElement("p");
 noResultsEl.className = "state-message";
@@ -96,7 +97,7 @@ function renderEntry(
     row.className = `result-line ${isMatch ? "match" : "context"}`;
     row.href = `#${buildEpisodeHash(episodeId, i, query)}`;
 
-    const ts = document.createElement("span");
+    const ts = document.createElement("time");
     ts.className = "ts";
     ts.textContent = formatTime(line.start);
 

@@ -1,10 +1,11 @@
 import type { Chapter, EpisodeMetadata, EpisodeLines, Line } from "../types.js";
-import { formatTime, MIN_QUERY_LENGTH } from "../search.js";
+import { MIN_QUERY_LENGTH } from "../search.js";
 import { applyHighlights, clearHighlights } from "../highlight.js";
+import { formatTime } from "../utils";
 
 export interface ChapterBlockData {
   el: HTMLElement;
-  emptyEl: HTMLElement;
+  headerEl: HTMLElement;
   lineEls: HTMLElement[];
   chapter: Chapter;
   chapterIdx: number; // 1-based
@@ -17,12 +18,12 @@ export interface RenderResult {
 }
 
 export function renderEpisode(
-  container: HTMLElement,
-  episode: EpisodeMetadata,
-  lines: EpisodeLines,
-  query: string,
-  scrollToLine?: number,
-  chapters?: Chapter[],
+    container: HTMLElement,
+    episode: EpisodeMetadata,
+    lines: EpisodeLines,
+    query: string,
+    scrollToLine?: number,
+    chapters?: Chapter[],
 ): RenderResult {
   clearHighlights();
   container.replaceChildren();
@@ -72,7 +73,7 @@ function makeLineEl(line: Line, idx: number): HTMLElement {
   el.className = "transcript-line";
   el.dataset["idx"] = String(idx);
 
-  const ts = document.createElement("span");
+  const ts = document.createElement("time");
   ts.className = "ts";
   ts.textContent = formatTime(line.start);
 
@@ -86,15 +87,17 @@ function makeLineEl(line: Line, idx: number): HTMLElement {
 }
 
 function renderFlat(
-  list: HTMLElement,
-  lines: EpisodeLines,
-  lineEls: HTMLElement[],
+    list: HTMLElement,
+    lines: EpisodeLines,
+    lineEls: HTMLElement[],
 ): void {
   const frag = document.createDocumentFragment();
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    if (!line) { continue; }
+    if (!line) {
+      continue;
+    }
 
     const el = makeLineEl(line, i);
     frag.appendChild(el);
@@ -110,7 +113,9 @@ function countLinesPerChapter(lines: EpisodeLines, chapters: Chapter[]): number[
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    if (!line) { continue; }
+    if (!line) {
+      continue;
+    }
 
     while (chapIdx + 1 < chapters.length && chapters[chapIdx + 1].start <= line.start) {
       chapIdx++;
@@ -123,11 +128,11 @@ function countLinesPerChapter(lines: EpisodeLines, chapters: Chapter[]): number[
 }
 
 function renderWithChapters(
-  list: HTMLElement,
-  lines: EpisodeLines,
-  chapters: Chapter[],
-  lineEls: HTMLElement[],
-  episodeId: string,
+    list: HTMLElement,
+    lines: EpisodeLines,
+    chapters: Chapter[],
+    lineEls: HTMLElement[],
+    episodeId: string,
 ): ChapterBlockData[] {
   const frag = document.createDocumentFragment();
   const lineCounts = countLinesPerChapter(lines, chapters);
@@ -141,32 +146,34 @@ function renderWithChapters(
 
     const hasLines = lineCounts[i] > 0;
 
-    if (ch.name) {
-      const headerEl = hasLines
+    const headerEl = hasLines
         ? Object.assign(document.createElement("a"), { href: chapterHref })
         : document.createElement("div");
-      headerEl.className = "chapter-block-header";
-      headerEl.textContent = ch.name;
-      block.appendChild(headerEl);
+    headerEl.className = "chapter-block-header";
+
+    if (ch.name) {
+      const titleEl = document.createElement("strong");
+      titleEl.textContent = ch.name;
+      headerEl.appendChild(titleEl);
     }
 
-    const emptyEl = hasLines
-      ? Object.assign(document.createElement("a"), { href: chapterHref })
-      : document.createElement("div");
-    emptyEl.className = "chapter-empty-state";
-    emptyEl.textContent = `${formatTime(ch.start)} – ${formatTime(ch.end)}`;
-    emptyEl.hidden = true;
-    block.appendChild(emptyEl);
+    const timeEl = document.createElement("small");
+    timeEl.textContent = `${formatTime(ch.start)} – ${formatTime(ch.end)}`;
+    headerEl.appendChild(timeEl);
+
+    block.appendChild(headerEl);
 
     frag.appendChild(block);
-    return { el: block, emptyEl, lineEls: [], chapter: ch, chapterIdx: i + 1 };
+    return { el: block, headerEl: headerEl, lineEls: [], chapter: ch, chapterIdx: i + 1 };
   });
 
   let chapIdx = 0;
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    if (!line) { continue; }
+    if (!line) {
+      continue;
+    }
 
     while (chapIdx + 1 < chapters.length && chapters[chapIdx + 1].start <= line.start) {
       chapIdx++;
@@ -188,11 +195,11 @@ function renderWithChapters(
  * while in the episode view.
  */
 export function applyQueryFilter(
-  list: HTMLElement,
-  lineEls: HTMLElement[],
-  lines: EpisodeLines,
-  query: string,
-  chapterBlocks?: ChapterBlockData[],
+    list: HTMLElement,
+    lineEls: HTMLElement[],
+    lines: EpisodeLines,
+    query: string,
+    chapterBlocks?: ChapterBlockData[],
 ): void {
   clearHighlights();
 
@@ -202,7 +209,9 @@ export function applyQueryFilter(
   for (let i = 0; i < lineEls.length; i++) {
     const el = lineEls[i];
     const line = lines[i];
-    if (!el || !line) { continue; }
+    if (!el || !line) {
+      continue;
+    }
 
     const matches = filtering ? line.text.toLowerCase().includes(q) : true;
     el.classList.toggle("hidden", !matches);
@@ -231,10 +240,10 @@ function updateChapterBlock(block: ChapterBlockData, filtering: boolean): void {
 
   // Unnamed chapters always show their timestamp as a divider.
   if (!block.chapter.name) {
-    block.emptyEl.hidden = false;
+    block.headerEl.hidden = false;
     return;
   }
 
   // Named chapters show the timestamp only when all their lines are hidden.
-  block.emptyEl.hidden = hasVisibleLines;
+  block.headerEl.hidden = hasVisibleLines;
 }

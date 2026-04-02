@@ -1,9 +1,4 @@
-import type {
-  DisplayEntry,
-  EpisodeIndex,
-  EpisodeLines,
-  EpisodeSearchResult,
-} from "./types.js";
+import type { DisplayEntry, EpisodeIndex, EpisodeLines, EpisodeSearchResult, } from "./types.js";
 
 export const MIN_QUERY_LENGTH = 2;
 
@@ -24,16 +19,6 @@ export const MAX_MERGED_LINES = 10;
  * display entry. When false, each match produces its own independent entry.
  */
 export const MERGE_CONTEXT_ENTRIES = true;
-
-export function formatTime(seconds: number): string {
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = Math.floor(seconds % 60);
-  if (h > 0) {
-    return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-  }
-  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-}
 
 /** Quick check: does any line in this episode match the query? */
 export function episodeHasMatch(lines: EpisodeLines, query: string): boolean {
